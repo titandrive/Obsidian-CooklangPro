@@ -1,4 +1,4 @@
-import { App, Component, Modal, Notice, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, requestUrl } from "obsidian";
+import { App, Component, Menu, Modal, Notice, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, requestUrl, setIcon } from "obsidian";
 import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
 import { DEFAULT_MODEL, checkKey, convertWithClaude, describeError } from "./claude";
@@ -14,6 +14,8 @@ export interface ImporterSettings {
   photoLocation: "beside" | "folder";
   /** Vault path of the photos folder when `photoLocation` is "folder", e.g. "Recipes/Photos". */
   photosFolder: string;
+  /** What the recipe browser's cards show, set from its "Show" toolbar menu. */
+  cardShow: { heart: boolean; stars: boolean; time: boolean; servings: boolean };
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -24,6 +26,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   saveImage: true,
   photoLocation: "folder",
   photosFolder: "Recipes/Photos",
+  cardShow: { heart: true, stars: true, time: true, servings: true },
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -149,6 +152,7 @@ export class RecipeImporter extends Component {
     this.app = host.app;
     // Fill in defaults for settings saved by older versions.
     this.settings = Object.assign({}, DEFAULT_IMPORTER_SETTINGS, host.settings.importer ?? {});
+    this.settings.cardShow = Object.assign({}, DEFAULT_IMPORTER_SETTINGS.cardShow, this.settings.cardShow ?? {});
     host.settings.importer = this.settings;
   }
 
@@ -223,7 +227,78 @@ export class RecipeImporter extends Component {
       window.requestAnimationFrame(() => view?.controller?.view?.onResize?.());
     }
     syncBrowserRows(this.app, view, (f) => this.isRecipe(f), isBrowser);
+    if (!isBrowser || !el) return;
+    const show = this.settings.cardShow;
+    el.toggleClass("cooklang-hide-card-heart", !show.heart);
+    el.toggleClass("cooklang-hide-card-stars", !show.stars);
+    this.addShowButton(view);
+    this.renderCardDetails(view);
   }
+
+  /** Card details line: time and/or servings, as chosen in the Show menu. */
+  private renderCardDetails(view: any) {
+    const items: any[] = view?.controller?.view?.items ?? [];
+    const show = this.settings.cardShow;
+    for (const item of items) {
+      const file: TFile | undefined = item?.entry?.file;
+      const line: HTMLElement | null | undefined = item?.el?.querySelector('[data-property="formula.details"] .bases-cards-line');
+      if (!(file instanceof TFile) || !line) continue;
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+      const parts: string[] = [];
+      if (show.time && fm.time) parts.push(String(fm.time));
+      if (show.servings && fm.servings) parts.push(`${fm.servings} serving${Number(fm.servings) === 1 ? "" : "s"}`);
+      const text = parts.join(" · ");
+      if (line.textContent !== text) line.setText(text);
+    }
+  }
+
+  /** A "Show" button in the recipe browser's toolbar, next to Sort. */
+  private addShowButton(view: any) {
+    const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
+    if (!toolbar || toolbar.querySelector(".cooklang-show-menu")) return;
+    const item = createDiv({ cls: "bases-toolbar-item cooklang-show-menu" });
+    const button = item.createDiv({ cls: "text-icon-button", attr: { tabindex: "0", "aria-label": "Show or hide card details" } });
+    setIcon(button.createSpan({ cls: "text-button-icon" }), "eye");
+    button.createSpan({ cls: "text-button-label", text: "Show" });
+    button.addEventListener("click", (evt) => this.openShowMenu(view, evt));
+    toolbar.insertBefore(item, toolbar.querySelector(".bases-toolbar-sort-menu"));
+  }
+
+  private openShowMenu(view: any, evt: MouseEvent) {
+    const show = this.settings.cardShow;
+    const config = view?.controller?.view?.config;
+    // Bases may store a note property as "tags" or "note.tags"; compare without the "note." prefix.
+    const bare = (p: string) => p.replace(/^note\./, "");
+    const order = (): string[] => config?.getOrder?.() ?? [];
+    const has = (prop: string) => order().some((p) => bare(p) === bare(prop));
+    const remove = (prop: string) => config?.setOrder?.(order().filter((p) => bare(p) !== bare(prop)));
+    const insert = (prop: string, at: number) => {
+      const next = [...order()];
+      next.splice(Math.min(at, next.length), 0, prop);
+      config?.setOrder?.(next);
+    };
+    const menu = new Menu();
+    const toggle = (title: string, on: boolean, change: () => void) =>
+      menu.addItem((i) => i.setTitle(title).setChecked(on).onClick(async () => {
+        change();
+        await this.saveSettings();
+        this.refreshBrowsers();
+      }));
+    toggle("Favorite heart", show.heart, () => (show.heart = !show.heart));
+    toggle("Rating stars", show.stars, () => (show.stars = !show.stars));
+    menu.addSeparator();
+    const setDetails = () => {
+      // With neither time nor servings, drop the details line so the cards get shorter.
+      const want = show.time || show.servings;
+      if (want && !has("formula.details")) insert("formula.details", 1);
+      if (!want && has("formula.details")) remove("formula.details");
+    };
+    toggle("Time", show.time, () => { show.time = !show.time; setDetails(); });
+    toggle("Servings", show.servings, () => { show.servings = !show.servings; setDetails(); });
+    toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
+    menu.showAtMouseEvent(evt);
+  }
+
 
   onunload() {
     document.querySelectorAll(".recipe-importer-rating").forEach((el) => el.remove());

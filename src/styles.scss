@@ -863,3 +863,9 @@ button.cook-pill.is-clickable {
     color: var(--color-yellow);
   }
 }
+
+/* Recipe browser "Show" menu: hide the heart or stars overlay. */
+.cooklang-recipe-browser.cooklang-hide-card-heart .is-overlay .recipe-importer-favorite,
+.cooklang-recipe-browser.cooklang-hide-card-stars .is-overlay .recipe-importer-stars {
+  display: none;
+}
