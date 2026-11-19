@@ -309,19 +309,11 @@ export default class CookPlugin extends Plugin {
     this.addCommand({
       id: "toggle-preview-recipe",
       name: "Toggle preview recipe",
-      checkCallback: checking => {
-        const leaf = this.app.workspace.activeLeaf;
-        if (!leaf) return false;
-        const view = leaf.view;
-        if (view instanceof CookView) {
-          if (!checking) void this.editAsMarkdown(leaf);
-          return true;
-        }
-        if (!(view instanceof MarkdownView) || !view.file
-            || !isRecipeSource(view.file.path, view.editor.getValue(), parseYaml)) return false;
-        if (!checking) void this.openAsRecipe(leaf, view.file);
-        return true;
-      },
+      checkCallback: checking => this.toggleRecipeView(checking),
+    });
+    // The same switch as a sidebar button.
+    this.addRibbonIcon('book-open', 'Switch between recipe and text view', () => {
+      if (!this.toggleRecipeView(false)) new Notice('Open a recipe to switch between its recipe and text views.');
     });
 
     this.addCommand({
@@ -347,6 +339,21 @@ export default class CookPlugin extends Plugin {
   private reportError(message: string, error: unknown): void {
     console.error(message, error);
     new Notice(`${message}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  /** Switches the active tab between the recipe view and the text editor. False when it isn't a recipe. */
+  private toggleRecipeView(checking: boolean): boolean {
+    const leaf = this.app.workspace.activeLeaf;
+    if (!leaf) return false;
+    const view = leaf.view;
+    if (view instanceof CookView) {
+      if (!checking) void this.editAsMarkdown(leaf);
+      return true;
+    }
+    if (!(view instanceof MarkdownView) || !view.file
+        || !isRecipeSource(view.file.path, view.editor.getValue(), parseYaml)) return false;
+    if (!checking) void this.openAsRecipe(leaf, view.file);
+    return true;
   }
 
   async openAsRecipe(leaf: WorkspaceLeaf, file: TFile, referenceScale: RecipeReferenceScaleRequest | null = null): Promise<void> {
