@@ -350,12 +350,14 @@ export class RecipeImporter extends Component {
     toggle("Time", show.time, () => { show.time = !show.time; setDetails(); });
     toggle("Servings", show.servings, () => { show.servings = !show.servings; setDetails(); });
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
+    menu.addSeparator();
+    toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
     menu.showAtMouseEvent(evt);
   }
 
 
   onunload() {
-    document.querySelectorAll(".recipe-importer-rating").forEach((el) => el.remove());
+    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu").forEach((el) => el.remove());
   }
 
   /** The photos folder, when photos are kept in their own folder; null when they go beside recipes. */
