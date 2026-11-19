@@ -632,6 +632,7 @@ class ImportModal extends Modal {
 
   /** A muted line of keyboard hints under the buttons. */
   private keyHints(...hints: string[]) {
+    if (Platform.isMobile) return; // no keyboard shortcuts to show on a phone or tablet
     const mod = Platform.isMacOS ? "⌘" : "Ctrl";
     this.contentEl.createDiv({ cls: "recipe-importer-keys", text: hints.map((h) => h.replace(/Mod/g, mod)).join("   ·   ") });
   }

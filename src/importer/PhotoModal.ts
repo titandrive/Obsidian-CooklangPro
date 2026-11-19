@@ -6,7 +6,7 @@
 //   - Escape closes
 // The download and resize follow MoonSync's cover import.
 
-import { App, ButtonComponent, Modal, requestUrl } from "obsidian";
+import { App, ButtonComponent, Modal, Platform, requestUrl } from "obsidian";
 
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
@@ -85,7 +85,11 @@ export class PhotoModal extends Modal {
         drop.removeClass("has-image");
       }
       caption.setText(label);
-      hint.setText(src ? "Click, drop or paste to use a different image" : "Drop an image here, paste one, or click to choose a file");
+      hint.setText(
+        Platform.isMobile
+          ? src ? "Tap to choose a different photo" : "Tap to choose a photo or take one"
+          : src ? "Click, drop or paste to use a different image" : "Drop an image here, paste one, or click to choose a file",
+      );
     };
     const setSource = (source: Source) => {
       this.source = source;
