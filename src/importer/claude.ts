@@ -14,7 +14,7 @@ title: "<recipe title>"
 description: "<one or two sentences, only if the source has a description>"
 servings: <number only>
 time: <total minutes> minutes      (omit if unknown or clearly wrong)
-source: <source URL>
+source: <source URL>      (omit if there is none)
 tags: [<tags>]
 ---
 
@@ -75,11 +75,15 @@ export async function convertWithClaude(opts: {
   recipe: RecipeData | null;
   url: string;
   pageText?: string;
+  /** pageText is a recipe the user pasted, not a web page. */
+  pasted?: boolean;
   onProgress?: (p: ClaudeProgress) => void;
   signal?: AbortSignal;
 }): Promise<string> {
   const client = new Anthropic({ apiKey: opts.apiKey, dangerouslyAllowBrowser: true });
-  const source = opts.recipe
+  const source = opts.pasted
+    ? `The user pasted this recipe (there is no source URL, so leave out the source line):\n\n${opts.pageText ?? ""}`
+    : opts.recipe
     ? `Source URL: ${opts.url}\n\nschema.org Recipe data from the page:\n${JSON.stringify(opts.recipe.raw, null, 1)}`
     : `Source URL: ${opts.url}\n\nThe page had no structured recipe data. Its text:\n${opts.pageText ?? ""}`;
 

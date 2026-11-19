@@ -669,7 +669,45 @@ button.cook-pill.is-clickable {
   min-width: 18em;
 }
 
-// Import dialog: the link check and the progress list.
+// Import dialog: the tabs, the link check and the progress list.
+.recipe-importer-tabs {
+  display: flex;
+  gap: 0.4em;
+  margin-bottom: 0.8em;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.recipe-importer-tabs button.recipe-importer-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  background-color: transparent;
+  box-shadow: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-muted);
+  padding: 0.4em 0.6em;
+  cursor: pointer;
+
+  &:hover { color: var(--text-normal); background-color: transparent; }
+  &.is-active { color: var(--text-normal); border-bottom-color: var(--interactive-accent); }
+}
+
+.recipe-importer-tabs + .setting-item {
+  border-top: none;
+}
+
+.recipe-importer-text {
+  width: 100%;
+  min-height: 14em;
+  resize: vertical;
+  font-size: var(--font-ui-small);
+  margin-bottom: 0.5em;
+}
+
+.recipe-importer-check.is-ok-inline { color: var(--text-success); }
+
 .recipe-importer-check {
   display: flex;
   align-items: center;

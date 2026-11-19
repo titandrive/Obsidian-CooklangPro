@@ -2,7 +2,7 @@
 
 CooklangPro is a fork of [Cooklang Editor](https://github.com/cooklang/cooklang-obsidian) by death_au, with the [Recipe Importer](https://github.com/titandrive/Obsidian-RecipeImporter) plugin built in. On top of everything Cooklang Editor does, it adds:
 
-- **Import recipe from URL**: turns a recipe page into a Cooklang recipe note, with its photo and tags. Optional Claude conversion with an Anthropic API key.
+- **Import recipe**: turns a recipe page, or recipe text you paste, into a Cooklang recipe note, with its photo and tags. Optional Claude conversion with an Anthropic API key (needed for pasted text).
 - **Recipe browser**: an Obsidian base with photo cards, views by folder, favorites and top rated, and a table.
 - **Favorites and ratings**: a heart and 1-5 stars under each recipe's title and on every card in the browser.
 - **Clickable tags** under the recipe title.

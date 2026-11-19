@@ -48,6 +48,8 @@ interface Page {
   recipe: RecipeData | null;
   /** The recipe data has ingredients or steps. */
   usable: boolean;
+  /** Recipe text pasted by the user, instead of a web page. */
+  text?: string;
 }
 
 interface Prepared {
@@ -175,10 +177,10 @@ export class RecipeImporter extends Component {
   onload() {
     this.host.addCommand({
       id: "import-recipe-from-url",
-      name: "Import recipe from URL",
+      name: "Import recipe",
       callback: () => new ImportModal(this.app, this).open(),
     });
-    this.host.addRibbonIcon("chef-hat", "Import recipe from URL", () => new ImportModal(this.app, this).open());
+    this.host.addRibbonIcon("chef-hat", "Import recipe", () => new ImportModal(this.app, this).open());
     this.host.addCommand({
       id: "set-recipe-photo",
       name: "Set recipe photo",
@@ -401,6 +403,11 @@ export class RecipeImporter extends Component {
     return page.usable || !!this.settings.apiKey;
   }
 
+  /** A pasted recipe, ready to convert like a fetched page (Claude only). */
+  textPage(text: string): Page {
+    return { url: "", html: "", recipe: null, usable: false, text };
+  }
+
   /** Converts a fetched page into a Cooklang recipe note. */
   async convert(page: Page, onProgress?: (p: ClaudeProgress) => void, signal?: AbortSignal): Promise<Prepared> {
     const { url, recipe, usable, html } = page;
@@ -410,7 +417,8 @@ export class RecipeImporter extends Component {
         model: this.settings.model,
         recipe: usable ? recipe : null,
         url,
-        pageText: usable ? undefined : pageText(html),
+        pageText: page.text ?? (usable ? undefined : pageText(html)),
+        pasted: page.text !== undefined,
         onProgress,
         signal,
       });
@@ -574,6 +582,7 @@ class ImportModal extends Modal {
 
   onOpen() {
     this.setTitle("Import recipe");
+    this.modalEl.addClass("recipe-importer-modal");
     this.showUrlStep();
   }
 
@@ -582,9 +591,70 @@ class ImportModal extends Modal {
   private abort: AbortController | null = null;
 
   /** Step 1: the link. As soon as a link is entered, the page is fetched and checked. */
+  private pastedText = "";
+
+  /** Tabs at the top of the first screen: a link, or pasted text. */
+  private tabs(active: "link" | "text") {
+    const bar = this.contentEl.createDiv({ cls: "recipe-importer-tabs" });
+    const tab = (id: "link" | "text", icon: string, label: string, open: () => void) => {
+      const b = bar.createEl("button", { cls: "recipe-importer-tab" + (id === active ? " is-active" : "") });
+      setIcon(b.createSpan({ cls: "recipe-importer-check-icon" }), icon);
+      b.createSpan({ text: label });
+      b.addEventListener("click", () => id !== active && open());
+    };
+    tab("link", "link", "From a link", () => this.showUrlStep());
+    tab("text", "text", "From text", () => this.showTextStep());
+  }
+
+  /** Step 1, text tab: a recipe pasted from anywhere, converted by Claude. */
+  private showTextStep() {
+    const { contentEl } = this;
+    contentEl.empty();
+    this.tabs("text");
+    const claude = !!this.plugin.settings.apiKey;
+    const area = contentEl.createEl("textarea", {
+      cls: "recipe-importer-text",
+      attr: { placeholder: "Paste a recipe: its name, ingredients and steps, in any layout.", spellcheck: "false" },
+    });
+    area.value = this.pastedText;
+    const check = contentEl.createDiv({ cls: "recipe-importer-check" });
+    let button!: import("obsidian").ButtonComponent;
+    new Setting(contentEl).addButton((b) => {
+      button = b;
+      b.setButtonText("Import").setCta().onClick(() => go());
+    });
+    const row = (icon: string, text: string, cls: string) => {
+      check.empty();
+      check.className = `recipe-importer-check ${cls}`;
+      setIcon(check.createSpan({ cls: "recipe-importer-check-icon" }), icon);
+      check.createSpan({ text });
+    };
+    const update = () => {
+      this.pastedText = area.value;
+      const text = area.value.trim();
+      const lines = text ? text.split(/\n/).filter((l) => l.trim()).length : 0;
+      if (!claude) row("circle-x", "Importing from text needs Claude. Add an Anthropic API key in settings.", "is-error");
+      else if (!text) { check.empty(); check.className = "recipe-importer-check"; }
+      else if (text.length < 40) row("triangle-alert", "That's very short for a recipe.", "is-warning");
+      else row("circle-check", `${plural(lines, "line")} pasted. Claude will turn it into a recipe.`, "is-ok-inline");
+      button.setDisabled(!claude || text.length < 40);
+    };
+    const go = () => {
+      if (claude && area.value.trim().length >= 40) this.showProgressStep(this.plugin.textPage(area.value.trim()));
+    };
+    area.addEventListener("input", update);
+    // Ctrl/Cmd+Enter imports; plain Enter is a new line.
+    area.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(); }
+    });
+    update();
+    window.setTimeout(() => area.focus(), 0);
+  }
+
   private showUrlStep(initialUrl = "") {
     const { contentEl } = this;
     contentEl.empty();
+    this.tabs("link");
     let url = initialUrl;
     let input!: HTMLInputElement;
     new Setting(contentEl).setName("Recipe link").addText((t) => {
@@ -705,19 +775,20 @@ class ImportModal extends Modal {
       set("waiting");
       return { el, set, label };
     };
-    const read = step("Read the recipe from the page");
+    const read = step(page.text !== undefined ? "Read the pasted recipe" : "Read the recipe from the page");
     const convert = step(claude ? "Convert with Claude" : "Convert to Cooklang");
     const bar = convert.el.createEl("progress", { cls: "recipe-importer-bar" });
     bar.max = 1;
     bar.hide();
-    read.set("done", page.usable && page.recipe ? page.recipe.name : "From the page text");
+    read.set("done", page.text !== undefined ? "" : page.usable && page.recipe ? page.recipe.name : "From the page text");
 
     const buttons = new Setting(contentEl);
     this.abort = new AbortController();
     const signal = this.abort.signal;
     buttons.addButton((b) => b.setButtonText("Cancel").onClick(() => {
       this.abort?.abort();
-      this.showUrlStep(page.url);
+      if (page.text !== undefined) this.showTextStep();
+      else this.showUrlStep(page.url);
     }));
 
     // Progress from the streamed answer: steps written out of the steps in the recipe data.
@@ -765,7 +836,7 @@ class ImportModal extends Modal {
     contentEl.empty();
     const folders = this.plugin.recipeFolders();
     let title = p.recipe?.name ?? (/^title:\s*"?(.*?)"?\s*$/m.exec(p.markdown)?.[1] || "New recipe");
-    let folder = (p.recipe && guessFolder(p.recipe, folders)) ?? folders[0] ?? "";
+    let folder = guessFolder(p.recipe ?? noteAsRecipe(p.markdown, title), folders) ?? folders[0] ?? "";
 
     contentEl.createEl("p", {
       text:
@@ -799,7 +870,8 @@ class ImportModal extends Modal {
       .addButton((b) =>
         b.setButtonText("Back").onClick(() => {
           this.prepared = null;
-          this.showUrlStep(p.url);
+          if (p.url) this.showUrlStep(p.url);
+          else this.showTextStep();
         }),
       )
       .addButton((b) =>
@@ -836,6 +908,15 @@ class ImportModal extends Modal {
     this.checkToken++;
     this.contentEl.empty();
   }
+}
+
+/** Enough of a recipe note's front matter to guess its folder: the title and tags. */
+function noteAsRecipe(markdown: string, title: string): RecipeData {
+  const tags = /^tags:\s*\[(.*)\]/m.exec(markdown)?.[1].split(",").map((t) => t.trim().replace(/^["']|["']$/g, "")) ?? [];
+  return {
+    name: title, description: "", url: "", imageUrl: null, servings: null, yieldText: null, totalMinutes: null,
+    ingredients: [], groups: [], categories: [], cuisines: [], keywords: tags, diets: [], raw: null,
+  };
 }
 
 function plural(n: number, word: string): string {
