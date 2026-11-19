@@ -17,6 +17,8 @@ export interface ImporterSettings {
   photosFolder: string;
   /** What the recipe browser's cards show, set from its "Show" toolbar menu. */
   cardShow: { heart: boolean; stars: boolean; time: boolean; servings: boolean };
+  /** Clicking a recipe in the recipe browser opens it in a new tab instead of the browser's tab. */
+  browserNewTab: boolean;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -28,6 +30,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   photoLocation: "folder",
   photosFolder: "Recipes/Photos",
   cardShow: { heart: true, stars: true, time: true, servings: true },
+  browserNewTab: true,
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -245,11 +248,45 @@ export class RecipeImporter extends Component {
     }
     syncBrowserRows(this.app, view, (f) => this.isRecipe(f), isBrowser);
     if (!isBrowser || !el) return;
+    this.openInNewTab(view);
     const show = this.settings.cardShow;
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
     this.addShowButton(view);
     this.renderCardDetails(view);
+  }
+
+  private newTabViews = new WeakSet<object>();
+
+  /** In the recipe browser, a click on a card or a recipe name in the table opens it in a new tab. */
+  private openInNewTab(view: any) {
+    const el: HTMLElement | undefined = view?.containerEl;
+    if (!el || this.newTabViews.has(view)) return;
+    this.newTabViews.add(view);
+    this.registerDomEvent(el, "click", (evt: MouseEvent) => {
+      if (!this.settings.browserNewTab || evt.ctrlKey || evt.metaKey || evt.shiftKey || evt.altKey) return;
+      if (!(view?.file instanceof TFile) || view.file.path !== this.browserPath()) return;
+      const target = evt.target as HTMLElement | null;
+      // The heart and stars handle their own clicks; leave toolbar, menus and editable cells alone.
+      if (!target || target.closest(".recipe-importer-rating, .bases-toolbar, input, textarea, [contenteditable]")) return;
+      const card = target.closest<HTMLElement>(".bases-cards-item");
+      const nameCell = target.closest<HTMLElement>('.bases-td[data-property="file.name"]');
+      const host = card ?? nameCell?.closest<HTMLElement>(".bases-tr");
+      if (!host) return;
+      const inner = view?.controller?.view;
+      const list: any[] = Array.isArray(inner?.items) ? inner.items : Array.isArray(inner?.rows) ? inner.rows : [];
+      const file = list.find((i) => i?.el === host)?.entry?.file;
+      if (!(file instanceof TFile) || !this.isRecipe(file)) return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      // Open the new tab right after the browser's own tab, wherever the focus was.
+      const ws = this.app.workspace;
+      const leaf = view.leaf;
+      const parent = leaf?.parent;
+      const index = parent?.children?.indexOf(leaf) ?? -1;
+      const newLeaf = parent && index >= 0 ? ws.createLeafInParent(parent, index + 1) : ws.getLeaf("tab");
+      void this.host.openAsRecipe(newLeaf, file).then(() => ws.setActiveLeaf(newLeaf, { focus: true }));
+    }, { capture: true });
   }
 
   /** Card details line: time and/or servings, as chosen in the Show menu. */
@@ -688,6 +725,15 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
       .addToggle((t) =>
         t.setValue(plugin.settings.openAfterImport).onChange(async (v) => {
           plugin.settings.openAfterImport = v;
+          await plugin.saveSettings();
+        }),
+      );
+    new Setting(containerEl)
+      .setName("Open recipes from the browser in a new tab")
+      .setDesc("Off: a recipe opens in the recipe browser's tab.")
+      .addToggle((t) =>
+        t.setValue(plugin.settings.browserNewTab).onChange(async (v) => {
+          plugin.settings.browserNewTab = v;
           await plugin.saveSettings();
         }),
       );
