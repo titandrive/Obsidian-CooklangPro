@@ -1,7 +1,7 @@
 {
-  "name": "cooklang-obsidian",
-  "version": "0.15.1",
-  "description": "Edit and display Cooklang recipes in Obsidian",
+  "name": "cooklang-pro",
+  "version": "0.15.2",
+  "description": "Edit, display and import Cooklang recipes, with a recipe browser and ratings. A fork of Cooklang Editor.",
   "main": "main.js",
   "type": "module",
   "engines": {
@@ -49,5 +49,8 @@
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0"
   }
 }

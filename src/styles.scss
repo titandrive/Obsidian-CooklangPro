@@ -649,3 +649,187 @@
     padding-inline: var(--size-4-4, 16px);
   }
 }
+
+// ---- Recipe importer, recipe browser, favorites and ratings (formerly the Recipe Importer plugin) ----
+.recipe-importer-url {
+  width: 100%;
+  min-width: 18em;
+}
+
+.recipe-importer-status {
+  color: var(--text-muted);
+  margin-top: 0.5em;
+  min-height: 1.5em;
+}
+
+.recipe-importer-key-status {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  padding: 0 0 0.75em;
+}
+
+.recipe-importer-key-status.is-ok {
+  color: var(--text-success);
+}
+
+.recipe-importer-key-status.is-error {
+  color: var(--text-error);
+}
+
+.recipe-importer-clickable-tags .cook-pill-tag {
+  cursor: pointer;
+}
+
+.recipe-importer-clickable-tags .cook-pill-tag:hover {
+  text-decoration: underline;
+}
+
+/* Cooklang Editor: let long words and links in notes and steps wrap instead of overflowing on narrow screens. */
+.cook-note-text,
+.cook-main,
+.cook-aside {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Rating stars under the recipe title */
+.recipe-importer-rating {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: var(--size-4-2, 8px);
+}
+
+.recipe-importer-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.recipe-importer-favorite {
+  --icon-size: 22px;
+  padding: 2px;
+  color: var(--text-faint);
+}
+
+.recipe-importer-favorite.is-favorite {
+  color: var(--color-red);
+}
+
+.recipe-importer-favorite.is-favorite svg {
+  fill: currentColor;
+}
+
+.recipe-importer-rating-star {
+  --icon-size: 22px;
+  padding: 2px;
+  color: var(--text-faint);
+}
+
+.recipe-importer-rating-star.is-filled {
+  color: var(--color-yellow);
+}
+
+.recipe-importer-rating-star.is-filled svg {
+  fill: currentColor;
+}
+
+/* Recipe browser: the heart and stars on one line, without a label. */
+.bases-cards-property[data-property="formula.stars"] .bases-cards-label {
+  display: none;
+}
+
+/* Hide the "no value" dash for unrated recipes; the icons set their own colours. */
+[data-property="formula.stars"] .bases-cards-line,
+[data-property="formula.stars"].bases-td,
+[data-property="formula.favorite_icon"].bases-td,
+[data-property="formula.rating_stars"].bases-td {
+  color: transparent;
+}
+
+[data-property="formula.stars"] .value-list-container {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+}
+
+[data-property="formula.stars"] .value-list-gap {
+  display: none;
+}
+
+[data-property="formula.stars"] .value-list-element {
+  display: inline-flex;
+  padding: 0;
+  background: none;
+  border: none;
+}
+
+[data-property="formula.stars"] .value-list-element svg {
+  width: 16px;
+  height: 16px;
+}
+
+[data-property="formula.stars"] .value-list-element .lucide-star {
+  color: var(--color-yellow);
+  fill: currentColor;
+}
+
+[data-property="formula.stars"] .value-list-element .lucide-heart {
+  color: var(--color-red);
+  fill: currentColor;
+  margin-right: 6px;
+}
+
+/* Recipe browser cards: the clickable heart and stars replace the formula's icons. */
+.recipe-importer-has-row {
+  color: var(--text-normal);
+}
+
+.recipe-importer-has-row > .value-list-container {
+  display: none !important;
+}
+
+.recipe-importer-rating.is-compact {
+  margin-top: 0;
+  gap: 6px;
+}
+
+.recipe-importer-rating.is-compact .recipe-importer-favorite,
+.recipe-importer-rating.is-compact .recipe-importer-rating-star {
+  --icon-size: 16px;
+  padding: 1px;
+}
+
+/* Recipe browser table: keep the heart and stars on one line in the cell. */
+.bases-table-cell.recipe-importer-has-row {
+  overflow: visible;
+}
+
+.bases-table-cell .recipe-importer-rating.is-compact {
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+/* Recipe view: show the photo as a sharp thumbnail instead of at its natural size. */
+.cook-hero .cook-hero-image {
+  flex: 0 1 300px;
+  max-width: 300px;
+}
+
+.cook-hero .cook-hero-image img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+@container (max-width: 599px) {
+  .cook-hero .cook-hero-image {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+
+  .cook-hero .cook-hero-image img {
+    aspect-ratio: 16 / 10;
+  }
+}

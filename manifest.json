@@ -1,10 +1,10 @@
 {
-  "id": "cooklang-obsidian",
-  "name": "Cooklang Editor",
-  "author": "death_au",
-  "authorUrl": "https://github.com/deathau",
-  "description": "Edit and display Cooklang recipes in Obsidian",
+  "id": "cooklang-pro",
+  "name": "CooklangPro",
+  "author": "TitanDrive",
+  "authorUrl": "https://github.com/titandrive/Obsidian-CooklangPro",
+  "description": "Edit, display and import Cooklang recipes, with a recipe browser and ratings. A fork of Cooklang Editor.",
   "isDesktopOnly": false,
-  "version": "0.15.1",
+  "version": "0.15.2",
   "minAppVersion": "1.8.0"
 }

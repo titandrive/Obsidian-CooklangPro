@@ -34,11 +34,13 @@ import { TimerService } from './services/TimerService';
 import timerMp3 from './timer.mp3';
 import type { RecipeReferenceScaleRequest } from './utils/scaling';
 import { createUiInstanceId } from './ui/instanceIds';
+import { RecipeImporter } from './importer/RecipeImporter';
 
 export default class CookPlugin extends Plugin {
 
   settings!: CooklangSettings;
   recipeHost!: ObsidianRecipeHost;
+  importer!: RecipeImporter;
   private alarms!: AlarmCoordinator;
   private router!: RecipeViewRouter<WorkspaceLeaf>;
   private conversions = new Set<TFile>();
@@ -47,6 +49,10 @@ export default class CookPlugin extends Plugin {
   private sessions!: RecipeSessions<WorkspaceLeaf, RecipeSession>;
   private routeTimeout: number | null = null;
   private routingReady = false;
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+  }
 
   saveData(data: CooklangSettings): Promise<void> {
     const settings = { ...data } as CooklangSettings & { lineWrap?: unknown };
@@ -153,9 +159,10 @@ export default class CookPlugin extends Plugin {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (!(file instanceof TFile)) return false;
         if (isRecipeFile(path)) return true;
-        if (leaf.view instanceof MarkdownView && leaf.view.file === file) {
-          return isRecipeSource(path, leaf.view.editor.getValue(), parseYaml);
-        }
+        // A newly created editor is empty until the note loads; fall back to the metadata cache
+        // instead of deciding "not a recipe" too early (cooklang/cooklang-obsidian#190).
+        const source = leaf.view instanceof MarkdownView && leaf.view.file === file ? leaf.view.editor.getValue() : '';
+        if (source !== '') return isRecipeSource(path, source, parseYaml);
         const cache = this.app.metadataCache.getFileCache(file);
         return cache ? isRecipeFile(path, cache.frontmatter) : undefined;
       },
@@ -197,6 +204,9 @@ export default class CookPlugin extends Plugin {
     });
 
     this.addSettingTab(new CookSettingsTab(this.app, this));
+
+    // Recipe import, the recipe browser, favorites and ratings, and clickable tags.
+    this.importer = this.addChild(new RecipeImporter(this));
 
     // Register file explorer context menu
     this.registerEvent(
@@ -335,7 +345,7 @@ export default class CookPlugin extends Plugin {
     new Notice(`${message}: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  private async openAsRecipe(leaf: WorkspaceLeaf, file: TFile, referenceScale: RecipeReferenceScaleRequest | null = null): Promise<void> {
+  async openAsRecipe(leaf: WorkspaceLeaf, file: TFile, referenceScale: RecipeReferenceScaleRequest | null = null): Promise<void> {
     const view = leaf.view;
     const originalFile = view instanceof TextFileView ? view.file : null;
     try {

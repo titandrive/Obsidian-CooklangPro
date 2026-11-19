@@ -1,9 +1,11 @@
 import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { CookView } from './cookView';
 import { RECIPE_FORMATS, type RecipeFormat } from './utils/recipeFiles';
+import { displayImporterSettings, type ImporterSettings, type RecipeImporter } from './importer/RecipeImporter';
 
 declare class CookPlugin extends Plugin {
   settings: CooklangSettings;
+  importer: RecipeImporter;
   reloadCookViews(): void;
 }
 
@@ -35,6 +37,8 @@ export class CooklangSettings {
   secondsLabel: string = "";
   minutesLabel: string = "";
   hoursLabel: string = "";
+  /** Recipe importer, browser and rating settings (see importer/RecipeImporter.ts). */
+  importer?: Partial<ImporterSettings>;
 }
 
 export class CookSettingsTab extends PluginSettingTab {
@@ -345,5 +349,7 @@ export class CookSettingsTab extends PluginSettingTab {
         this.plugin.saveData(this.plugin.settings);
         this.plugin.reloadCookViews();
       }));
+
+    if (this.plugin.importer) displayImporterSettings(containerEl, this.plugin.importer);
   }
 }
