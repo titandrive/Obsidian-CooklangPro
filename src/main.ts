@@ -159,10 +159,14 @@ export default class CookPlugin extends Plugin {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (!(file instanceof TFile)) return false;
         if (isRecipeFile(path)) return true;
-        // A newly created editor is empty until the note loads; fall back to the metadata cache
-        // instead of deciding "not a recipe" too early (cooklang/cooklang-obsidian#190).
-        const source = leaf.view instanceof MarkdownView && leaf.view.file === file ? leaf.view.editor.getValue() : '';
-        if (source !== '') return isRecipeSource(path, source, parseYaml);
+        if (leaf.view instanceof MarkdownView && leaf.view.file === file) {
+          const source = leaf.view.editor.getValue();
+          // A newly created editor is empty until the note loads. Don't decide yet: the native editor
+          // extension reroutes once the text arrives, after the tab has finished opening
+          // (cooklang/cooklang-obsidian#190).
+          if (source === '') return undefined;
+          return isRecipeSource(path, source, parseYaml);
+        }
         const cache = this.app.metadataCache.getFileCache(file);
         return cache ? isRecipeFile(path, cache.frontmatter) : undefined;
       },
