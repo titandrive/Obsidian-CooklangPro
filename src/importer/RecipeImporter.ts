@@ -10,6 +10,10 @@ export interface ImporterSettings {
   model: string;
   openAfterImport: boolean;
   saveImage: boolean;
+  /** Where downloaded photos go: next to the recipe, or into `photosFolder`. */
+  photoLocation: "beside" | "folder";
+  /** Vault path of the photos folder when `photoLocation` is "folder", e.g. "Recipes/Photos". */
+  photosFolder: string;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -18,6 +22,8 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   model: DEFAULT_MODEL,
   openAfterImport: true,
   saveImage: true,
+  photoLocation: "folder",
+  photosFolder: "Recipes/Photos",
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -26,9 +32,6 @@ export interface ImporterHost extends Plugin {
   saveSettings(): Promise<void>;
   openAsRecipe(leaf: WorkspaceLeaf, file: TFile): Promise<void>;
 }
-
-/** Subfolder of the recipes folder where photos are kept. */
-const PHOTOS_FOLDER = "Photos";
 
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
@@ -208,9 +211,11 @@ export class RecipeImporter extends Component {
     document.querySelectorAll(".recipe-importer-rating").forEach((el) => el.remove());
   }
 
-  /** Where recipe photos are kept: a Photos folder in the recipes folder. */
-  photosFolder(): string {
-    return normalizePath(`${this.settings.recipesFolder}/${PHOTOS_FOLDER}`);
+  /** The photos folder, when photos are kept in their own folder; null when they go beside recipes. */
+  photosFolder(): string | null {
+    if (this.settings.photoLocation !== "folder") return null;
+    const path = normalizePath(this.settings.photosFolder.trim() || DEFAULT_IMPORTER_SETTINGS.photosFolder);
+    return path === "/" ? null : path;
   }
 
   /** The standard recipe folders plus any other subfolders of the recipes folder. Missing ones are created on save. */
@@ -218,7 +223,8 @@ export class RecipeImporter extends Component {
     const root = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.recipesFolder));
     const existing = root instanceof TFolder ? root.children.filter((c): c is TFolder => c instanceof TFolder).map((f) => f.name) : [];
     return [...new Set([...DEFAULT_FOLDERS, ...existing])]
-      .filter((name) => name !== PHOTOS_FOLDER)
+      // Never offer the photos folder as a place for recipes.
+      .filter((name) => normalizePath(`${this.settings.recipesFolder}/${name}`) !== this.photosFolder())
       .sort((a, b) => a.localeCompare(b));
   }
 
@@ -263,9 +269,10 @@ export class RecipeImporter extends Component {
         const img = await requestUrl({ url: new URL(p.recipe.imageUrl, p.url).href, headers: { "User-Agent": USER_AGENT } });
         const type = (img.headers["content-type"] || img.headers["Content-Type"] || "").toLowerCase();
         const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : type.includes("gif") ? "gif" : "jpg";
-        // Photos go in the Photos folder; the recipe's photo property links to it, and the recipe view and
-        // the browser both show the linked photo. Obsidian keeps the link updated on rename.
-        const photos = this.photosFolder();
+        // Photos go beside the recipe or into the photos folder, per the settings. Either way the recipe's
+        // photo property links to it, which the recipe view and the browser both use; Obsidian keeps the
+        // link updated when files move or are renamed.
+        const photos = this.photosFolder() ?? dir;
         if (!this.app.vault.getAbstractFileByPath(photos)) await this.app.vault.createFolder(photos);
         let photoName = `${base}.${ext}`;
         for (let n = 2; this.app.vault.getAbstractFileByPath(`${photos}/${photoName}`); n++) photoName = `${base} ${n}.${ext}`;
@@ -288,7 +295,8 @@ export class RecipeImporter extends Component {
   /** Gives every recipe with a "<name>.<image ext>" photo beside it or in the Photos folder a photo property, if it has none. */
   async linkRecipePhotos(): Promise<number> {
     let added = 0;
-    const photosDir = this.app.vault.getAbstractFileByPath(this.photosFolder());
+    const photosPath = this.photosFolder();
+    const photosDir = photosPath ? this.app.vault.getAbstractFileByPath(photosPath) : null;
     const isPhotoOf = (c: unknown, file: TFile): c is TFile =>
       c instanceof TFile && c.basename === file.basename && /^(jpe?g|png|webp|gif)$/i.test(c.extension);
     for (const file of this.app.vault.getMarkdownFiles()) {
@@ -471,13 +479,45 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
       .addButton((b) => b.setButtonText("Open recipe browser").onClick(() => void plugin.openRecipeBrowser()));
     new Setting(containerEl)
       .setName("Save the recipe photo")
-      .setDesc("Downloads the recipe's photo into the Photos folder in your recipes folder, linked from the recipe.")
+      .setDesc("Downloads the recipe's photo when importing, and links it from the recipe's photo property.")
       .addToggle((t) =>
         t.setValue(plugin.settings.saveImage).onChange(async (v) => {
           plugin.settings.saveImage = v;
           await plugin.saveSettings();
+          showPhotoSettings();
         }),
       );
+    const locationSetting = new Setting(containerEl)
+      .setName("Where to save photos")
+      .setDesc("Next to each recipe, or all in one folder.")
+      .addDropdown((d) =>
+        d
+          .addOption("beside", "Next to the recipe")
+          .addOption("folder", "In a folder")
+          .setValue(plugin.settings.photoLocation)
+          .onChange(async (v) => {
+            plugin.settings.photoLocation = v === "beside" ? "beside" : "folder";
+            await plugin.saveSettings();
+            showPhotoSettings();
+          }),
+      );
+    const folderSetting = new Setting(containerEl)
+      .setName("Photos folder")
+      .setDesc("The folder in your vault for recipe photos, for example Recipes/Photos. It's created when needed.")
+      .addText((t) =>
+        t
+          .setPlaceholder(DEFAULT_IMPORTER_SETTINGS.photosFolder)
+          .setValue(plugin.settings.photosFolder)
+          .onChange(async (v) => {
+            plugin.settings.photosFolder = v.trim() || DEFAULT_IMPORTER_SETTINGS.photosFolder;
+            await plugin.saveSettings();
+          }),
+      );
+    const showPhotoSettings = () => {
+      locationSetting.settingEl.toggle(plugin.settings.saveImage);
+      folderSetting.settingEl.toggle(plugin.settings.saveImage && plugin.settings.photoLocation === "folder");
+    };
+    showPhotoSettings();
     new Setting(containerEl)
       .setName("Open after importing")
       .addToggle((t) =>
