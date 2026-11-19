@@ -3,6 +3,7 @@ import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
 import { DEFAULT_MODEL, checkKey, convertWithClaude, describeError } from "./claude";
 import { syncBrowserRows } from "./rating";
+import { PhotoModal, resizePhoto } from "./PhotoModal";
 
 export interface ImporterSettings {
   recipesFolder: string;
@@ -167,6 +168,22 @@ export class RecipeImporter extends Component {
       callback: () => new ImportModal(this.app, this).open(),
     });
     this.host.addRibbonIcon("chef-hat", "Import recipe from URL", () => new ImportModal(this.app, this).open());
+    this.host.addCommand({
+      id: "set-recipe-photo",
+      name: "Set recipe photo",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || !this.isRecipe(file)) return false;
+        if (!checking) this.openPhotoModal(file);
+        return true;
+      },
+    });
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        if (!(file instanceof TFile) || !this.isRecipe(file)) return;
+        menu.addItem((item) => item.setTitle("Set recipe photo").setIcon("image").onClick(() => this.openPhotoModal(file)));
+      }),
+    );
     this.host.addCommand({
       id: "open-recipe-browser",
       name: "Open recipe browser",
@@ -360,25 +377,67 @@ export class RecipeImporter extends Component {
     if (this.settings.saveImage && p.recipe?.imageUrl) {
       try {
         const img = await requestUrl({ url: new URL(p.recipe.imageUrl, p.url).href, headers: { "User-Agent": USER_AGENT } });
-        const type = (img.headers["content-type"] || img.headers["Content-Type"] || "").toLowerCase();
-        const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : type.includes("gif") ? "gif" : "jpg";
-        // Photos go beside the recipe or into the photos folder, per the settings. Either way the recipe's
-        // photo property links to it, which the recipe view and the browser both use; Obsidian keeps the
-        // link updated when files move or are renamed.
-        const photos = this.photosFolder() ?? dir;
-        if (!this.app.vault.getAbstractFileByPath(photos)) await this.app.vault.createFolder(photos);
-        let photoName = `${base}.${ext}`;
-        for (let n = 2; this.app.vault.getAbstractFileByPath(`${photos}/${photoName}`); n++) photoName = `${base} ${n}.${ext}`;
-        await this.app.vault.createBinary(`${photos}/${photoName}`, img.arrayBuffer);
-        await this.app.fileManager.processFrontMatter(file, (fm) => {
-          fm.photo = `[[${photoName}]]`;
-        });
+        // Same rules as "Set recipe photo": resized, named after the recipe, in the photos folder or
+        // beside the recipe, never overwriting another recipe's photo, and linked from the recipe.
+        await this.setRecipePhoto(file, img.arrayBuffer);
       } catch (e) {
         console.warn("Recipe Importer: could not save the photo", e);
         new Notice("Recipe saved, but its photo could not be downloaded.");
       }
     }
     return file;
+  }
+
+  openPhotoModal(file: TFile) {
+    new PhotoModal(this.app, file.basename, async (data) => {
+      const path = await this.setRecipePhoto(file, data);
+      new Notice(`Photo set for ${file.basename}`);
+      console.debug("CooklangPro: recipe photo saved to", path);
+    }).open();
+  }
+
+  /**
+   * Saves a photo for a recipe: resized, named after the recipe, in the photos folder (or beside the
+   * recipe, per the settings), and linked from its photo property. A previous photo goes to the trash.
+   */
+  async setRecipePhoto(file: TFile, data: ArrayBuffer): Promise<string> {
+    const photo = await resizePhoto(data);
+    const dir = this.photosFolder() ?? file.parent?.path ?? "";
+    if (dir && !this.app.vault.getAbstractFileByPath(dir)) await this.app.vault.createFolder(dir);
+
+    // The old photo: the one linked from the recipe, or a same-name image beside it.
+    const linked = this.app.metadataCache.getFileCache(file)?.frontmatter?.photo;
+    const linkText = typeof linked === "string" ? linked.replace(/^!?\[\[/, "").replace(/\]\]$/, "").split("|")[0] : "";
+    const old = linkText ? this.app.metadataCache.getFirstLinkpathDest(linkText, file.path) : null;
+    const besideOld = file.parent?.children.find(
+      (c): c is TFile => c instanceof TFile && c.basename === file.basename && /^(jpe?g|png|webp|gif)$/i.test(c.extension),
+    );
+    const ours = new Set([old?.path, besideOld?.path].filter(Boolean));
+
+    // Named after the recipe. If another recipe's photo already has that name (two recipes with the
+    // same name in different folders), add a number rather than overwrite it.
+    const at = (n: number) => normalizePath(`${dir ? `${dir}/` : ""}${file.basename}${n > 1 ? ` ${n}` : ""}.${photo.ext}`);
+    let n = 1;
+    while (this.app.vault.getAbstractFileByPath(at(n)) && !ours.has(at(n))) n++;
+    const target = at(n);
+
+    const existing = this.app.vault.getAbstractFileByPath(target);
+    let saved: TFile;
+    if (existing instanceof TFile) {
+      await this.app.vault.modifyBinary(existing, photo.data);
+      saved = existing;
+    } else {
+      saved = await this.app.vault.createBinary(target, photo.data);
+    }
+    for (const prev of [old, besideOld]) {
+      if (prev instanceof TFile && prev.path !== target) await this.app.fileManager.trashFile(prev);
+    }
+    // Link the way Obsidian would: just the name when it's unique, with the folder when it isn't.
+    const link = this.app.metadataCache.fileToLinktext(saved, file.path, false);
+    await this.app.fileManager.processFrontMatter(file, (fm) => {
+      fm.photo = `[[${link}]]`;
+    });
+    return target;
   }
 
   browserPath(): string {

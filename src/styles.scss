@@ -869,3 +869,32 @@ button.cook-pill.is-clickable {
 .cooklang-recipe-browser.cooklang-hide-card-stars .is-overlay .recipe-importer-stars {
   display: none;
 }
+
+/* Set recipe photo window */
+.cooklang-photo-tabs {
+  display: flex;
+  gap: var(--size-4-2, 8px);
+  margin-bottom: var(--size-4-2, 8px);
+
+  button.is-active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+  }
+}
+
+.cooklang-photo-pane {
+  display: none;
+
+  &.is-active {
+    display: block;
+  }
+}
+
+.cooklang-photo-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  margin: var(--size-4-2, 8px) auto;
+  border-radius: var(--radius-m, 8px);
+  object-fit: cover;
+}
