@@ -147,4 +147,16 @@ describe('getAdditionalMetadata', () => {
             { key: '__proto__', value: 'prototype value' },
         ]);
     });
+
+    it('hides CooklangPro\'s own properties', () => {
+        const result = getAdditionalMetadata(recipe([
+            ['recipe', 'true'],
+            ['photo', '[[Curry.jpg]]'],
+            ['favorite', 'true'],
+            ['rating', '4'],
+            ['author', 'Jo'],
+        ]));
+
+        expect(result).toEqual([{ key: 'author', value: 'Jo' }]);
+    });
 });

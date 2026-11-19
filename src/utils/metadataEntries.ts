@@ -18,6 +18,12 @@ const PILL_KEYS: Partial<Record<string, PillKind>> = {
     diet: 'diet',
 };
 
+/**
+ * CooklangPro's own properties, shown elsewhere in the view: `recipe` marks the note as a recipe, `photo` is the
+ * hero image, `favorite` and `rating` are the heart and stars.
+ */
+const OWN_KEYS = new Set(['recipe', 'photo', 'favorite', 'rating']);
+
 function hasText(value: unknown): boolean {
     return value != null && String(value).trim().length > 0;
 }
@@ -33,6 +39,7 @@ function isHandledMetadataKey(
     key: string,
     pillKinds: ReadonlySet<PillKind>,
 ): boolean {
+    if (OWN_KEYS.has(key)) return true;
     if (key === 'title') return hasText(recipe.title);
     if (key === 'description') return hasText(recipe.description);
     if (key === 'time') {
