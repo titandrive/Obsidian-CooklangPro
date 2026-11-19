@@ -1,6 +1,7 @@
 <script lang="ts">
     import { findRecipeImages } from '../utils/imageHelpers';
     import { getRecipeImageUrls } from '../utils/recipeImages';
+    import { photoLinkText } from '../utils/recipeMarks';
     import CookwareList from './components/CookwareList.svelte';
     import Hero from './components/Hero.svelte';
     import IngredientList from './components/IngredientList.svelte';
@@ -12,7 +13,13 @@
 
     let { model }: { model: RecipeRenderModel } = $props();
     let images = $derived(findRecipeImages(model.file));
-    let mainImage = $derived(images.mainImage ?? getRecipeImageUrls(model.recipe.images)[0] ?? null);
+    // A photo beside the recipe wins; otherwise the one its `photo` property links to (for example in a
+    // Photos folder); otherwise an `image:` web address.
+    let linkedPhoto = $derived.by(() => {
+        const link = photoLinkText(model.recipe);
+        return link && model.file && model.host.resolveLink ? model.host.resolveLink(link, model.file.path) : null;
+    });
+    let mainImage = $derived(images.mainImage ?? linkedPhoto ?? getRecipeImageUrls(model.recipe.images)[0] ?? null);
 </script>
 
 <Hero {model} {mainImage} />

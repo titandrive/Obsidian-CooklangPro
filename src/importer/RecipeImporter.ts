@@ -2,7 +2,7 @@ import { App, Component, Modal, Notice, Plugin, Setting, TFile, TFolder, Workspa
 import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
 import { DEFAULT_MODEL, checkKey, convertWithClaude, describeError } from "./claude";
-import { syncBrowserRows, syncRatingRow } from "./rating";
+import { syncBrowserRows } from "./rating";
 
 export interface ImporterSettings {
   recipesFolder: string;
@@ -10,7 +10,6 @@ export interface ImporterSettings {
   model: string;
   openAfterImport: boolean;
   saveImage: boolean;
-  clickableTags: boolean;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -19,7 +18,6 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   model: DEFAULT_MODEL,
   openAfterImport: true,
   saveImage: true,
-  clickableTags: true,
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -28,9 +26,6 @@ export interface ImporterHost extends Plugin {
   saveSettings(): Promise<void>;
   openAsRecipe(leaf: WorkspaceLeaf, file: TFile): Promise<void>;
 }
-
-// The recipe view draws a recipe's tags as plain labels with this class.
-const TAG_PILL = ".cook-pill-tag";
 
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
@@ -162,15 +157,11 @@ export class RecipeImporter extends Component {
       name: "Open recipe browser",
       callback: () => void this.openRecipeBrowser(),
     });
-    // Clickable rating stars under the title in each Cooklang recipe view.
-    this.registerEvent(this.app.workspace.on("layout-change", () => this.watchRecipeViews()));
-    this.registerEvent(this.app.metadataCache.on("changed", () => this.refreshRatings()));
-    this.app.workspace.onLayoutReady(() => this.watchRecipeViews());
-
-    // Clickable tags in the Cooklang Editor's recipe view, in the main window and any pop-out windows.
-    this.watchTagClicks(document);
-    this.registerEvent(this.app.workspace.on("window-open", (win) => this.watchTagClicks(win.doc)));
-    this.applyTagClass();
+    // Clickable heart and stars on the recipe browser's cards and table rows. Obsidian draws those, so
+    // they're added to its views; the recipe view has them built in (ui/components/RecipeMarks.svelte).
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.watchBrowsers()));
+    this.registerEvent(this.app.metadataCache.on("changed", () => this.refreshBrowsers()));
+    this.app.workspace.onLayoutReady(() => this.watchBrowsers());
   }
 
   isRecipe(file: TFile): boolean {
@@ -180,8 +171,8 @@ export class RecipeImporter extends Component {
 
   private watchedViews = new WeakSet<object>();
 
-  /** The recipe view and the browser re-render often, so watch each one and put the rows back whenever they're missing. */
-  private watchRecipeViews() {
+  /** The browser re-renders often, so watch each one and put the rows back whenever they're missing. */
+  private watchBrowsers() {
     for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
       const view = leaf.view as any;
       const el: HTMLElement | undefined = view.containerEl;
@@ -202,56 +193,16 @@ export class RecipeImporter extends Component {
       }
       syncBrowserRows(this.app, view, (f) => this.isRecipe(f));
     }
-    for (const leaf of this.app.workspace.getLeavesOfType("cook")) {
-      const view = leaf.view as any;
-      const el: HTMLElement | undefined = view.contentEl;
-      if (!el) continue;
-      if (!this.watchedViews.has(view)) {
-        this.watchedViews.add(view);
-        const observer = new MutationObserver(() => syncRatingRow(this.app, el, view.file ?? null));
-        observer.observe(el, { childList: true, subtree: true });
-        this.register(() => observer.disconnect());
-      }
-      syncRatingRow(this.app, el, view.file ?? null);
-    }
   }
 
-  private refreshRatings() {
-    for (const leaf of this.app.workspace.getLeavesOfType("cook")) {
-      const view = leaf.view as any;
-      if (view.contentEl) syncRatingRow(this.app, view.contentEl, view.file ?? null);
-    }
+  private refreshBrowsers() {
     for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
       syncBrowserRows(this.app, leaf.view, (f) => this.isRecipe(f));
     }
   }
 
   onunload() {
-    document.body.removeClass("recipe-importer-clickable-tags");
     document.querySelectorAll(".recipe-importer-rating").forEach((el) => el.remove());
-  }
-
-  applyTagClass() {
-    document.body.toggleClass("recipe-importer-clickable-tags", this.settings.clickableTags);
-  }
-
-  private watchTagClicks(doc: Document) {
-    doc.body.toggleClass("recipe-importer-clickable-tags", this.settings.clickableTags);
-    this.registerDomEvent(doc, "click", (evt: MouseEvent) => {
-      if (!this.settings.clickableTags) return;
-      const pill = (evt.target as HTMLElement | null)?.closest?.(TAG_PILL);
-      if (!pill) return;
-      const tag = (pill.textContent ?? "").trim().replace(/^#/, "");
-      if (!tag) return;
-      evt.preventDefault();
-      evt.stopPropagation();
-      const search = (this.app as any).internalPlugins?.getPluginById?.("global-search");
-      if (search?.enabled && search.instance?.openGlobalSearch) {
-        search.instance.openGlobalSearch(`tag:#${tag}`);
-      } else {
-        new Notice("Turn on the Search core plugin to search by tag.");
-      }
-    });
   }
 
   /** The standard recipe folders plus any other subfolders of the recipes folder. Missing ones are created on save. */
@@ -519,16 +470,6 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
         }),
       );
 
-    new Setting(containerEl)
-      .setName("Make recipe tags clickable")
-      .setDesc("In the recipe view, clicking a tag under the title searches the vault for that tag.")
-      .addToggle((t) =>
-        t.setValue(plugin.settings.clickableTags).onChange(async (v) => {
-          plugin.settings.clickableTags = v;
-          await plugin.saveSettings();
-          plugin.applyTagClass();
-        }),
-      );
 
     new Setting(containerEl).setName("Recipe importer: Claude").setHeading();
     const keySetting = new Setting(containerEl)

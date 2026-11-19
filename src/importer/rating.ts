@@ -1,5 +1,5 @@
-// A favorite heart and 1-5 rating stars, shown under the title in the Cooklang Editor's recipe view
-// and on each card in the recipe browser. The heart toggles a "favorite" property. Clicking a star saves
+// A favorite heart and 1-5 rating stars on each card and table row of the recipe browser (the recipe
+// view has its own, ui/components/RecipeMarks.svelte). The heart toggles a "favorite" property. Clicking a star saves
 // it as "rating"; clicking the current rating clears it.
 
 import { App, TFile, setIcon } from "obsidian";
@@ -100,16 +100,6 @@ export function ensureRatingRow(app: App, parent: HTMLElement, file: TFile, extr
   });
   if (!row.querySelector(".recipe-importer-stars:hover")) paintStars(row, rating);
   return row;
-}
-
-/** The recipe view: the row goes at the end of the title block. */
-export function syncRatingRow(app: App, container: HTMLElement, file: TFile | null) {
-  const body = container.querySelector<HTMLElement>(".cook-hero-body");
-  if (!body || !file) {
-    container.querySelectorAll(`.${ROW}`).forEach((el) => el.remove());
-    return;
-  }
-  ensureRatingRow(app, body, file);
 }
 
 /** Browser formula properties that get a clickable row, and which parts each shows. */

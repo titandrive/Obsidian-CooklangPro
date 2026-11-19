@@ -1,4 +1,4 @@
-import { App, TFile, WorkspaceLeaf } from 'obsidian';
+import { App, Notice, TFile, WorkspaceLeaf } from 'obsidian';
 import type { RecipeRefTarget } from '../utils/ingredientAggregator';
 import { resolveReferenceCandidatePaths } from '../utils/recipeReferences';
 import { isRecipeFile } from '../utils/recipeFiles';
@@ -56,5 +56,25 @@ export class ObsidianRecipeHost implements RecipeHostAdapter {
 
     openWikiLink(sourcePath: string, linktext: string): void {
         void this.app.workspace.openLinkText(linktext, sourcePath);
+    }
+
+    resolveLink(linktext: string, sourcePath: string): TFile | null {
+        const file = this.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath);
+        return file instanceof TFile ? file : null;
+    }
+
+    async setRecipeMark(file: TFile, key: 'favorite' | 'rating', value: boolean | number): Promise<void> {
+        await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
+            if (value) frontmatter[key] = value;
+            else delete frontmatter[key];
+        });
+    }
+
+    searchTag(tag: string): void {
+        // The core Search plugin has no public API; this is how other plugins open it with a query.
+        const search = (this.app as unknown as { internalPlugins?: { getPluginById?(id: string): { enabled?: boolean; instance?: { openGlobalSearch?(query: string): void } } | undefined } })
+            .internalPlugins?.getPluginById?.('global-search');
+        if (search?.enabled && search.instance?.openGlobalSearch) search.instance.openGlobalSearch(`tag:#${tag}`);
+        else new Notice('Turn on the Search core plugin to search by tag.');
     }
 }

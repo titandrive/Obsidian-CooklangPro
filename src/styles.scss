@@ -202,10 +202,16 @@
 .cook-hero-body { flex: 1 1 260px; min-width: 0; }
 .cook-hero-title { margin: 0 0 var(--size-4-2, 8px); font-size: 1.9em; line-height: 1.15; }
 .cook-hero-desc { margin: 0 0 var(--size-4-3, 12px); color: var(--text-muted); max-width: 60ch; }
-.cook-hero-image { flex: 1 1 240px; max-width: 42%; margin: 0; min-width: 0; }
-.cook-hero-image img { width: 100%; height: auto; border-radius: var(--radius-l, 12px); object-fit: cover; }
+// A sharp thumbnail, not the photo's natural size: tall photos would otherwise fill the view.
+.cook-hero-image { flex: 0 1 300px; max-width: 300px; margin: 0; min-width: 0; }
+.cook-hero-image img { width: 100%; height: auto; aspect-ratio: 4 / 3; border-radius: var(--radius-l, 12px); object-fit: cover; }
 
 /* Pills */
+// Tags are buttons that search the vault; keep them looking like the other pills.
+button.cook-pill.is-clickable {
+  font: inherit; color: inherit; cursor: pointer; box-shadow: none; height: auto;
+  &:hover { text-decoration: underline; }
+}
 .cook-pills { display: flex; flex-wrap: wrap; gap: var(--size-2-2, 6px); }
 .cook-pill {
   display: inline-flex; align-items: center; gap: 5px;
@@ -547,7 +553,11 @@
 .cook-note-text {
   // The Cooklang parser turns a backslash continuation into a newline.
   white-space: pre-line;
+  // A flex item can't shrink below its longest word, so a long link would push the note off a phone screen.
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
+.cook-main, .cook-aside { overflow-wrap: anywhere; }
 
 /* More details */
 .cook-more { margin-top: var(--size-4-6, 24px); }
@@ -624,6 +634,7 @@
 
 @container (max-width: 599px) {
   .cook-hero-image { max-width: 100%; flex-basis: 100%; }
+  .cook-hero-image img { aspect-ratio: 16 / 10; }
   .cook-bar { flex-wrap: wrap; }
   .cook-stepper { min-height: 34px; }
   .cook-stepper-btn { width: 28px; height: 28px; }
@@ -676,23 +687,9 @@
   color: var(--text-error);
 }
 
-.recipe-importer-clickable-tags .cook-pill-tag {
-  cursor: pointer;
-}
 
-.recipe-importer-clickable-tags .cook-pill-tag:hover {
-  text-decoration: underline;
-}
 
-/* Cooklang Editor: let long words and links in notes and steps wrap instead of overflowing on narrow screens. */
-.cook-note-text,
-.cook-main,
-.cook-aside {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-/* Rating stars under the recipe title */
+/* Favorite heart and rating stars, under the recipe title and on the recipe browser */
 .recipe-importer-rating {
   display: flex;
   align-items: center;
@@ -808,28 +805,4 @@
 .bases-table-cell .recipe-importer-rating.is-compact {
   gap: 4px;
   flex-wrap: nowrap;
-}
-
-/* Recipe view: show the photo as a sharp thumbnail instead of at its natural size. */
-.cook-hero .cook-hero-image {
-  flex: 0 1 300px;
-  max-width: 300px;
-}
-
-.cook-hero .cook-hero-image img {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-}
-
-@container (max-width: 599px) {
-  .cook-hero .cook-hero-image {
-    flex-basis: 100%;
-    max-width: 100%;
-  }
-
-  .cook-hero .cook-hero-image img {
-    aspect-ratio: 16 / 10;
-  }
 }

@@ -14,3 +14,5 @@ export class Notice {
         this.noticeEl.remove();
     }
 }
+
+export function setIcon(_el: HTMLElement, _icon: string): void {}

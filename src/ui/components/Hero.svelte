@@ -3,6 +3,7 @@
     import { buildMetaPills } from '../../utils/heroModel';
     import type { RecipeRenderModel } from '../types';
     import { recipeName } from '../../utils/recipeFiles';
+    import RecipeMarks from './RecipeMarks.svelte';
 
     let { model, mainImage }: { model: RecipeRenderModel; mainImage: TFile | string | null } = $props();
     let title = $derived(model.recipe.title?.trim() || (model.file && recipeName(model.file.path)) || 'Recipe');
@@ -32,6 +33,13 @@
                             {#if pill.icon}<span class="cook-pill-icon" aria-hidden="true">{pill.icon}</span>{/if}
                             {pill.text}
                         </a>
+                    {:else if pill.kind === 'tag' && model.interactive && model.host.searchTag}
+                        <button
+                            type="button"
+                            class="cook-pill cook-pill-tag is-clickable"
+                            aria-label={`Search for ${pill.text}`}
+                            onclick={() => model.host.searchTag?.(pill.text.replace(/^#/, ''))}
+                        >{pill.text}</button>
                     {:else}
                         <span class:cook-pill-tag={pill.kind === 'tag'} class="cook-pill">
                             {#if pill.icon}<span class="cook-pill-icon" aria-hidden="true">{pill.icon}</span>{/if}
@@ -41,6 +49,7 @@
                 {/each}
             </div>
         {/if}
+        <RecipeMarks {model} />
     </div>
 
     {#if model.settings.showImages && mainImageUrl}

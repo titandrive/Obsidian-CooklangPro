@@ -31,6 +31,12 @@ export interface RecipeHostAdapter {
     resolveReference(sourceFile: TFile | null, ref: RecipeRefTarget): ResolvedRecipeReference | null;
     openReference(reference: ResolvedRecipeReference): void;
     openWikiLink(sourcePath: string, linktext: string): void;
+    /** The vault file a link points to, from the given note. */
+    resolveLink?(linktext: string, sourcePath: string): TFile | null;
+    /** Saves (or, for false/0, removes) a recipe's favorite or rating property. */
+    setRecipeMark?(file: TFile, key: 'favorite' | 'rating', value: boolean | number): Promise<void>;
+    /** Searches the vault for a tag. */
+    searchTag?(tag: string): void;
 }
 
 export interface TimerController {
