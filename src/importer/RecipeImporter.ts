@@ -99,13 +99,13 @@ function recipeBaseContent(): string {
     "  note.source:",
     "    displayName: Source",
     "views:",
-    ...cards("All recipes"),
-    ...cards("By folder", ["    groupBy:", "      property: file.folder", "      direction: ASC"]),
-    ...cards("Vegan", ["    filters:", "      and:", '        - tags.contains("vegan")']),
-    ...cards("Favorites", ["    filters:", "      and:", "        - favorite == true"]),
-    ...cards("Top rated", ["    filters:", "      and:", "        - rating >= 4"], [["note.rating", "DESC"], ["file.name", "ASC"]]),
+    ...cards("All recipes", ["    icon: chef-hat"]),
+    ...cards("By folder", ["    icon: folder", "    groupBy:", "      property: file.folder", "      direction: ASC"]),
+    ...cards("Favorites", ["    icon: heart", "    filters:", "      and:", "        - favorite == true"]),
+    ...cards("Top rated", ["    icon: star", "    filters:", "      and:", "        - rating >= 4"], [["note.rating", "DESC"], ["file.name", "ASC"]]),
     "  - type: table",
     "    name: Table",
+    "    icon: table",
     "    columnSize:",
     "      formula.favorite_icon: 115",
     "      formula.rating_stars: 130",
@@ -568,7 +568,7 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
       );
     new Setting(containerEl)
       .setName("Recipe browser")
-      .setDesc("A base in the recipes folder that shows every recipe as a photo card, with views by folder, vegan only, favorites, top rated (4 or 5 stars), and a table.")
+      .setDesc("A base in the recipes folder that shows every recipe as a photo card, with views by folder, favorites, top rated (4 or 5 stars), and a table.")
       .addButton((b) => b.setButtonText("Open recipe browser").onClick(() => void plugin.openRecipeBrowser()));
     new Setting(containerEl)
       .setName("Save the recipe photo")
