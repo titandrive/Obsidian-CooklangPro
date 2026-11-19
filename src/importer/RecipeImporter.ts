@@ -27,6 +27,9 @@ export interface ImporterHost extends Plugin {
   openAsRecipe(leaf: WorkspaceLeaf, file: TFile): Promise<void>;
 }
 
+/** Subfolder of the recipes folder where photos are kept. */
+const PHOTOS_FOLDER = "Photos";
+
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
 interface Prepared {
@@ -205,11 +208,18 @@ export class RecipeImporter extends Component {
     document.querySelectorAll(".recipe-importer-rating").forEach((el) => el.remove());
   }
 
+  /** Where recipe photos are kept: a Photos folder in the recipes folder. */
+  photosFolder(): string {
+    return normalizePath(`${this.settings.recipesFolder}/${PHOTOS_FOLDER}`);
+  }
+
   /** The standard recipe folders plus any other subfolders of the recipes folder. Missing ones are created on save. */
   recipeFolders(): string[] {
     const root = this.app.vault.getAbstractFileByPath(normalizePath(this.settings.recipesFolder));
     const existing = root instanceof TFolder ? root.children.filter((c): c is TFolder => c instanceof TFolder).map((f) => f.name) : [];
-    return [...new Set([...DEFAULT_FOLDERS, ...existing])].sort((a, b) => a.localeCompare(b));
+    return [...new Set([...DEFAULT_FOLDERS, ...existing])]
+      .filter((name) => name !== PHOTOS_FOLDER)
+      .sort((a, b) => a.localeCompare(b));
   }
 
   async prepare(url: string): Promise<Prepared> {
@@ -253,11 +263,15 @@ export class RecipeImporter extends Component {
         const img = await requestUrl({ url: new URL(p.recipe.imageUrl, p.url).href, headers: { "User-Agent": USER_AGENT } });
         const type = (img.headers["content-type"] || img.headers["Content-Type"] || "").toLowerCase();
         const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : type.includes("gif") ? "gif" : "jpg";
-        // The recipe view shows "<recipe name>.<ext>" next to the recipe as its main photo.
-        await this.app.vault.createBinary(`${dir}/${base}.${ext}`, img.arrayBuffer);
-        // A link to the photo, for the recipe browser's cards. Obsidian keeps it updated on rename.
+        // Photos go in the Photos folder; the recipe's photo property links to it, and the recipe view and
+        // the browser both show the linked photo. Obsidian keeps the link updated on rename.
+        const photos = this.photosFolder();
+        if (!this.app.vault.getAbstractFileByPath(photos)) await this.app.vault.createFolder(photos);
+        let photoName = `${base}.${ext}`;
+        for (let n = 2; this.app.vault.getAbstractFileByPath(`${photos}/${photoName}`); n++) photoName = `${base} ${n}.${ext}`;
+        await this.app.vault.createBinary(`${photos}/${photoName}`, img.arrayBuffer);
         await this.app.fileManager.processFrontMatter(file, (fm) => {
-          fm.photo = `[[${base}.${ext}]]`;
+          fm.photo = `[[${photoName}]]`;
         });
       } catch (e) {
         console.warn("Recipe Importer: could not save the photo", e);
@@ -271,15 +285,18 @@ export class RecipeImporter extends Component {
     return normalizePath(`${this.settings.recipesFolder}/Recipe Browser.base`);
   }
 
-  /** Gives every recipe with a "<name>.<image ext>" file beside it a photo property, if it has none. */
+  /** Gives every recipe with a "<name>.<image ext>" photo beside it or in the Photos folder a photo property, if it has none. */
   async linkRecipePhotos(): Promise<number> {
     let added = 0;
+    const photosDir = this.app.vault.getAbstractFileByPath(this.photosFolder());
+    const isPhotoOf = (c: unknown, file: TFile): c is TFile =>
+      c instanceof TFile && c.basename === file.basename && /^(jpe?g|png|webp|gif)$/i.test(c.extension);
     for (const file of this.app.vault.getMarkdownFiles()) {
       const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
       if (fm?.recipe !== true || fm.photo || !file.parent) continue;
-      const photo = file.parent.children.find(
-        (c): c is TFile => c instanceof TFile && c.basename === file.basename && /^(jpe?g|png|webp|gif)$/i.test(c.extension),
-      );
+      const photo =
+        file.parent.children.find((c): c is TFile => isPhotoOf(c, file)) ??
+        (photosDir instanceof TFolder ? photosDir.children.find((c): c is TFile => isPhotoOf(c, file)) : undefined);
       if (!photo) continue;
       await this.app.fileManager.processFrontMatter(file, (f) => {
         f.photo = `[[${photo.name}]]`;
@@ -454,7 +471,7 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
       .addButton((b) => b.setButtonText("Open recipe browser").onClick(() => void plugin.openRecipeBrowser()));
     new Setting(containerEl)
       .setName("Save the recipe photo")
-      .setDesc("Downloads the photo next to the recipe so the recipe view shows it.")
+      .setDesc("Downloads the recipe's photo into the Photos folder in your recipes folder, linked from the recipe.")
       .addToggle((t) =>
         t.setValue(plugin.settings.saveImage).onChange(async (v) => {
           plugin.settings.saveImage = v;
