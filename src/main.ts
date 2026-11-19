@@ -312,7 +312,7 @@ export default class CookPlugin extends Plugin {
       checkCallback: checking => this.toggleRecipeView(checking),
     });
     // The same switch as a sidebar button.
-    this.addRibbonIcon('book-open', 'Switch between recipe and text view', () => {
+    this.addRibbonIcon('cooking-pot', 'Switch between recipe and text view', () => {
       if (!this.toggleRecipeView(false)) new Notice('Open a recipe to switch between its recipe and text views.');
     });
 
