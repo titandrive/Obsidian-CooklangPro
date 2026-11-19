@@ -193,7 +193,7 @@ const FOLDER_RULES: [RegExp, string][] = [
   [/\b(sauces?|dips?|dressings?|salsas?|pesto|guacamole|condiments?|marinades?|spreads?|gravy)\b/, "Sauces & Dips"],
   [/\b(sandwich(es)?|burgers?|wraps?|sloppy joes?)\b/, "Sandwiches"],
   [/\b(pasta|noodles?|spaghetti|linguine|fettuccine|penne|lasagna|ramen|udon|lo mein|mac and cheese|macaroni|gnocchi)\b/, "Pasta & Noodles"],
-  [/\b(side dish(es)?|sides?|salads?|vegetables?)\b/, "Sides"],
+  [/\b(side dish(es)?|sides?|salads?|vegetables?|green beans|asparagus|broccoli|brussels sprouts|mashed potatoes|roasted potatoes|coleslaw|slaw|fries|pilaf)\b/, "Sides"],
 ];
 
 /** Pick the most likely folder from the recipe's name and categories. Only returns names that exist. */

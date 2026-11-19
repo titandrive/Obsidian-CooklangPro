@@ -76,6 +76,12 @@ export interface ClaudeProgress {
   text: string;
 }
 
+/** Claude's answer: the recipe note, and the folder it picked if it was asked. */
+export interface ClaudeRecipe {
+  markdown: string;
+  folder: string | null;
+}
+
 export async function convertWithClaude(opts: {
   apiKey: string;
   model: string;
@@ -84,15 +90,20 @@ export async function convertWithClaude(opts: {
   pageText?: string;
   /** pageText is a recipe the user pasted, not a web page. */
   pasted?: boolean;
+  /** The recipe folders to choose from; Claude names the best fit. */
+  folders?: string[];
   onProgress?: (p: ClaudeProgress) => void;
   signal?: AbortSignal;
-}): Promise<string> {
+}): Promise<ClaudeRecipe> {
   const client = new Anthropic({ apiKey: opts.apiKey, dangerouslyAllowBrowser: true });
   const source = opts.pasted
     ? `The user pasted this recipe (there is no source URL, so leave out the source line):\n\n${opts.pageText ?? ""}`
     : opts.recipe
     ? `Source URL: ${opts.url}\n\nschema.org Recipe data from the page:\n${JSON.stringify(opts.recipe.raw, null, 1)}`
     : `Source URL: ${opts.url}\n\nThe page had no structured recipe data. Its text:\n${opts.pageText ?? ""}`;
+  const folderAsk = opts.folders?.length
+    ? `\n\nThe user's recipe folders: ${opts.folders.join(", ")}. After the recipe, add one last line "folder: <name>" with the folder this recipe fits best (by what kind of dish it is: a side dish goes in Sides even if it has vegetables and butter). It is removed before saving.`
+    : "";
 
   // Streamed, so the import dialog can show how far along the conversion is.
   const stream = client.beta.messages.stream(
@@ -103,7 +114,7 @@ export async function convertWithClaude(opts: {
       fallbacks: "default",
       output_config: { effort: "medium" },
       system: INSTRUCTIONS,
-      messages: [{ role: "user", content: source }],
+      messages: [{ role: "user", content: source + folderAsk }],
     },
     { signal: opts.signal },
   );
@@ -122,6 +133,10 @@ export async function convertWithClaude(opts: {
     .join("")
     .trim()
     .replace(/^```[a-z]*\n|\n```$/g, "");
-  if (!text.startsWith("---")) throw new Error("Claude's answer was not a recipe file.");
-  return text.endsWith("\n") ? text : text + "\n";
+  // The folder line, if asked for, comes last; take it off the note.
+  const folderLine = /\n+folder:\s*(.+?)\s*$/i.exec(text);
+  const folder = folderLine && opts.folders?.includes(folderLine[1]) ? folderLine[1] : null;
+  const note = folderLine ? text.slice(0, folderLine.index).trimEnd() : text;
+  if (!note.startsWith("---")) throw new Error("Claude's answer was not a recipe file.");
+  return { markdown: note + "\n", folder };
 }

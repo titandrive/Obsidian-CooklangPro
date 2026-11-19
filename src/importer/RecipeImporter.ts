@@ -61,6 +61,8 @@ interface Prepared {
   recipe: RecipeData | null;
   markdown: string;
   method: "claude" | "rules";
+  /** The folder Claude picked, if any. */
+  folder?: string | null;
 }
 
 /** An Obsidian base listing every recipe note (recipe: true), with photo cards and a table. */
@@ -421,17 +423,18 @@ export class RecipeImporter extends Component {
   async convert(page: Page, onProgress?: (p: ClaudeProgress) => void, signal?: AbortSignal): Promise<Prepared> {
     const { url, recipe, usable, html } = page;
     if (this.claudeOn()) {
-      const markdown = await convertWithClaude({
+      const { markdown, folder } = await convertWithClaude({
         apiKey: this.settings.apiKey,
         model: this.settings.model,
         recipe: usable ? recipe : null,
         url,
         pageText: page.text ?? (usable ? undefined : pageText(html)),
         pasted: page.text !== undefined,
+        folders: this.recipeFolders(),
         onProgress,
         signal,
       });
-      return { url, recipe, markdown, method: "claude" };
+      return { url, recipe, markdown, method: "claude", folder };
     }
     if (page.text !== undefined) {
       const parsed = parseRecipeText(page.text);
@@ -963,7 +966,8 @@ class ImportModal extends Modal {
     this.resetKeys();
     const folders = this.plugin.recipeFolders();
     let title = p.recipe?.name ?? (/^title:\s*"?(.*?)"?\s*$/m.exec(p.markdown)?.[1] || "New recipe");
-    let folder = guessFolder(p.recipe ?? noteAsRecipe(p.markdown, title), folders) ?? folders[0] ?? "";
+    let folder = (p.folder && folders.includes(p.folder) ? p.folder : null)
+      ?? guessFolder(p.recipe ?? noteAsRecipe(p.markdown, title), folders) ?? folders[0] ?? "";
 
     contentEl.createEl("p", {
       text:

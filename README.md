@@ -1,14 +1,36 @@
 # CooklangPro
 
-CooklangPro is a fork of [Cooklang Editor](https://github.com/cooklang/cooklang-obsidian) by death_au, with the [Recipe Importer](https://github.com/titandrive/Obsidian-RecipeImporter) plugin built in. On top of everything Cooklang Editor does, it adds:
+> **This is a fork.** CooklangPro is a fork of [Cooklang Editor](https://github.com/cooklang/cooklang-obsidian) by death_au and the Cooklang team. Everything Cooklang Editor does still works here; CooklangPro adds fixes and features on top, and folds in the [Recipe Importer](https://github.com/titandrive/Obsidian-RecipeImporter) plugin. Cooklang Editor's own features and documentation are below.
 
-- **Import recipe**: turns a recipe page, or recipe text you paste, into a Cooklang recipe note, with its photo and tags. Optional Claude conversion with an Anthropic API key (needed for pasted text).
-- **Recipe browser**: an Obsidian base with photo cards, views by folder, favorites and top rated, and a table.
-- **Favorites and ratings**: a heart and 1-5 stars under each recipe's title and on every card in the browser.
-- **Clickable tags** under the recipe title.
-- **Fixes**: recipes opened from the browser or into an empty tab open in the recipe view when it's the default (upstream issue #190), and long words in notes wrap on narrow screens.
+## Fixes
 
-Install it with [BRAT](https://github.com/TfTHacker/obsidian42-brat) using `titandrive/Obsidian-CooklangPro`, and turn off Cooklang Editor; the two can't run at once.
+- **Recipes open in the recipe view when it's the default.** Clicking a recipe note in the file explorer, a link, search or the recipe browser opens it straight in the recipe view, with no flash of text first. Upstream, recipes opened into an empty tab or from another recipe stayed as text ([upstream issue #190](https://github.com/cooklang/cooklang-obsidian/issues/190)).
+- **Long words in notes wrap** on narrow screens instead of running off the side.
+- **Recipe photos**: the header photo is a fixed-size thumbnail, and a photo linked from the recipe's `photo` property is used when there's none beside the recipe.
+- **More details** no longer repeats properties already shown in the recipe.
+- **Dropdowns** in the plugin's dialogs and settings follow your theme (on Linux, Obsidian's dropdown lists otherwise ignore it).
+
+## New features
+
+- **Import recipe** (chef-hat button or command):
+  - From a link: the link is checked as soon as you paste it, showing the recipe found (name, photo, ingredients, steps, time).
+  - From text: paste a recipe in any layout.
+  - The recipe's photo is downloaded, and tags and a folder are suggested.
+  - Optional Claude conversion with an Anthropic API key: better ingredient marking, and it handles pages without recipe data and messy pasted text. You can switch it on or off and pick the model in the dialog, with progress shown as it converts. Without Claude, a built-in converter is used.
+  - Usable from the keyboard: Ctrl/Cmd+Enter imports or saves, Ctrl/Cmd+1 and 2 switch tabs, Alt+Left goes back.
+- **Recipe browser**: an Obsidian base of every recipe.
+  - Photo cards with the heart and stars over the photo.
+  - Views: all recipes, by folder, favorites, top rated, and a table.
+  - A Show menu on the toolbar picks what the cards show (heart, stars, time, servings, tags).
+  - Recipes open in a new tab, which you can turn off.
+- **Favorites and ratings**: a heart and 1 to 5 stars under each recipe's title and on every browser card, saved as `favorite` and `rating` properties.
+- **Set recipe photo** (command or file menu): from a link, a file, a pasted image or the phone's camera. Photos are resized and saved in a photos folder or beside the recipe, as you choose in settings.
+- **Clickable tags** under the recipe title, which open a tag search.
+- **Sidebar buttons** for importing a recipe and for switching between recipe and text view.
+
+## Install
+
+Install with [BRAT](https://github.com/TfTHacker/obsidian42-brat) using `titandrive/Obsidian-CooklangPro`, and turn off Cooklang Editor; the two can't run at once.
 
 The original Cooklang Editor README follows.
 
