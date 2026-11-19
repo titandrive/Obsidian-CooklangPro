@@ -388,8 +388,21 @@ export class RecipeImporter extends Component {
     return file;
   }
 
+  /** The image file a recipe's photo property links to, or a same-name image beside it. */
+  currentPhoto(file: TFile): TFile | null {
+    const linked = this.app.metadataCache.getFileCache(file)?.frontmatter?.photo;
+    const linkText = typeof linked === "string" ? linked.replace(/^!?\[\[/, "").replace(/\]\]$/, "").split("|")[0] : "";
+    const dest = linkText ? this.app.metadataCache.getFirstLinkpathDest(linkText, file.path) : null;
+    if (dest) return dest;
+    return file.parent?.children.find(
+      (c): c is TFile => c instanceof TFile && c.basename === file.basename && /^(jpe?g|png|webp|gif)$/i.test(c.extension),
+    ) ?? null;
+  }
+
   openPhotoModal(file: TFile) {
-    new PhotoModal(this.app, file.basename, async (data) => {
+    const current = this.currentPhoto(file);
+    const currentUrl = current ? this.app.vault.getResourcePath(current) : null;
+    new PhotoModal(this.app, file.basename, currentUrl, async (data) => {
       const path = await this.setRecipePhoto(file, data);
       new Notice(`Photo set for ${file.basename}`);
       console.debug("CooklangPro: recipe photo saved to", path);

@@ -1,7 +1,12 @@
-// "Set recipe photo": pick a photo for a recipe from a web link or a file on this device.
-// Modelled on MoonSync's cover import (a link tab, download, resize), with a file tab added.
+// "Set recipe photo": pick a photo for a recipe from a web link, a pasted image, a dropped file, or a
+// file chosen from this device. One screen, no tabs, and usable from the keyboard:
+//   - the link field has focus; Enter sets the photo
+//   - Tab reaches the drop area, where Enter or Space opens the file chooser
+//   - Ctrl/Cmd+V with an image on the clipboard uses that image
+//   - Escape closes
+// The download and resize follow MoonSync's cover import.
 
-import { App, Modal, Setting, requestUrl } from "obsidian";
+import { App, ButtonComponent, Modal, requestUrl } from "obsidian";
 
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
@@ -27,97 +32,168 @@ export async function resizePhoto(data: ArrayBuffer): Promise<{ data: ArrayBuffe
   }
 }
 
+type Source = { kind: "url"; url: string } | { kind: "blob"; blob: Blob; label: string } | null;
+
 export class PhotoModal extends Modal {
-  private url = "";
-  private file: File | null = null;
+  private source: Source = null;
+  private objectUrl: string | null = null;
 
   constructor(
     app: App,
     private recipeName: string,
+    private currentPhotoUrl: string | null,
     private onPhoto: (data: ArrayBuffer) => Promise<void>,
   ) {
     super(app);
   }
 
   onOpen() {
-    const { contentEl } = this;
+    const { contentEl, modalEl } = this;
     this.setTitle("Set recipe photo");
-    contentEl.addClass("cooklang-photo-modal");
-    contentEl.createEl("p", { text: this.recipeName, cls: "setting-item-description" });
+    modalEl.addClass("cooklang-photo-modal");
+    contentEl.createDiv({ cls: "cooklang-photo-recipe", text: this.recipeName });
 
-    const tabNav = contentEl.createDiv({ cls: "cooklang-photo-tabs" });
-    const linkTab = tabNav.createEl("button", { text: "From a link", cls: "is-active" });
-    const fileTab = tabNav.createEl("button", { text: "From a file" });
-    const linkPane = contentEl.createDiv({ cls: "cooklang-photo-pane is-active" });
-    const filePane = contentEl.createDiv({ cls: "cooklang-photo-pane" });
-    const show = (tab: HTMLElement, pane: HTMLElement) => {
-      [linkTab, fileTab].forEach((t) => t.toggleClass("is-active", t === tab));
-      [linkPane, filePane].forEach((p) => p.toggleClass("is-active", p === pane));
-    };
-    linkTab.addEventListener("click", () => show(linkTab, linkPane));
-    fileTab.addEventListener("click", () => show(fileTab, filePane));
-
-    const preview = contentEl.createEl("img", { cls: "cooklang-photo-preview" });
-    preview.hide();
-    const status = contentEl.createDiv({ cls: "cooklang-photo-status setting-item-description" });
-
-    // From a link
-    new Setting(linkPane).setName("Image link").addText((t) => {
-      t.setPlaceholder("https://example.com/photo.jpg").onChange((v) => {
-        this.url = v.trim();
-        if (/^https?:\/\//i.test(this.url)) {
-          preview.src = this.url;
-          preview.show();
-        } else preview.hide();
-      });
-      t.inputEl.addClass("recipe-importer-url");
-      t.inputEl.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") void save();
-      });
-      window.setTimeout(() => t.inputEl.focus(), 0);
+    // Drop area: shows the current or chosen photo; click, Enter or Space chooses a file.
+    const drop = contentEl.createDiv({
+      cls: "cooklang-photo-drop",
+      attr: { tabindex: "0", role: "button", "aria-label": "Choose an image file, or drop one here" },
     });
-
-    // From a file
-    const input = filePane.createEl("input", { attr: { type: "file", accept: "image/*" } });
+    const img = drop.createEl("img", { cls: "cooklang-photo-img", attr: { alt: "" } });
+    const hint = drop.createDiv({ cls: "cooklang-photo-hint" });
+    const caption = drop.createDiv({ cls: "cooklang-photo-caption" });
+    const input = contentEl.createEl("input", { attr: { type: "file", accept: "image/*", tabindex: "-1" } });
     input.hide();
-    const chosen = new Setting(filePane).setName("Image file").setDesc("No file chosen.");
-    chosen.addButton((b) => b.setButtonText("Choose image").onClick(() => input.click()));
-    input.addEventListener("change", () => {
-      this.file = input.files?.[0] ?? null;
-      chosen.setDesc(this.file ? this.file.name : "No file chosen.");
-      if (this.file) {
-        preview.src = URL.createObjectURL(this.file);
-        preview.show();
-      }
+
+    const linkRow = contentEl.createDiv({ cls: "cooklang-photo-link" });
+    const link = linkRow.createEl("input", {
+      attr: { type: "text", placeholder: "Or paste an image link: https://...", "aria-label": "Image link", spellcheck: "false" },
     });
 
-    let button: import("obsidian").ButtonComponent;
-    const save = async () => {
-      const fromFile = filePane.hasClass("is-active");
-      if (fromFile ? !this.file : !/^https?:\/\//i.test(this.url)) {
-        status.setText(fromFile ? "Choose an image first." : "Enter a link starting with http:// or https://");
+    const status = contentEl.createDiv({ cls: "cooklang-photo-status" });
+    const buttons = contentEl.createDiv({ cls: "modal-button-container" });
+    const save = new ButtonComponent(buttons).setButtonText("Set photo").setCta().setDisabled(true);
+    new ButtonComponent(buttons).setButtonText("Cancel").onClick(() => this.close());
+
+    const showImage = (src: string | null, label: string) => {
+      if (src) {
+        img.src = src;
+        img.show();
+        drop.addClass("has-image");
+      } else {
+        img.removeAttribute("src");
+        img.hide();
+        drop.removeClass("has-image");
+      }
+      caption.setText(label);
+      hint.setText(src ? "Click, drop or paste to use a different image" : "Drop an image here, paste one, or click to choose a file");
+    };
+    const setSource = (source: Source) => {
+      this.source = source;
+      status.setText("");
+      save.setDisabled(!source);
+      if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
+      this.objectUrl = null;
+      if (source?.kind === "blob") {
+        this.objectUrl = URL.createObjectURL(source.blob);
+        showImage(this.objectUrl, source.label);
+      } else if (source?.kind === "url") {
+        showImage(source.url, "From link");
+      } else {
+        showImage(this.currentPhotoUrl, this.currentPhotoUrl ? "Current photo" : "");
+      }
+    };
+    img.addEventListener("error", () => {
+      if (this.source?.kind === "url") status.setText("That link doesn't load as an image here; it may still work.");
+    });
+    setSource(null);
+
+    // Choosing, dropping and pasting.
+    const useBlob = (blob: Blob | null | undefined, label: string) => {
+      if (!blob || !blob.type.startsWith("image/")) {
+        status.setText("That isn't an image.");
         return;
       }
-      button.setDisabled(true);
-      status.setText("Saving the photo...");
+      link.value = "";
+      setSource({ kind: "blob", blob, label });
+    };
+    drop.addEventListener("click", () => input.click());
+    drop.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        input.click();
+      }
+    });
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (file) useBlob(file, file.name);
+      input.value = "";
+    });
+    drop.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      drop.addClass("is-dragging");
+    });
+    drop.addEventListener("dragleave", () => drop.removeClass("is-dragging"));
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      drop.removeClass("is-dragging");
+      const file = e.dataTransfer?.files?.[0];
+      if (file) useBlob(file, file.name);
+      else {
+        const url = e.dataTransfer?.getData("text/uri-list") || e.dataTransfer?.getData("text/plain");
+        if (url) {
+          link.value = url.trim();
+          link.dispatchEvent(new Event("input"));
+        }
+      }
+    });
+    modalEl.addEventListener("paste", (e: ClipboardEvent) => {
+      const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith("image/"));
+      if (!item) return; // plain text goes into the link field as usual
+      e.preventDefault();
+      useBlob(item.getAsFile(), "Pasted image");
+    });
+
+    link.addEventListener("input", () => {
+      const url = link.value.trim();
+      if (/^https?:\/\/\S+$/i.test(url)) setSource({ kind: "url", url });
+      else if (this.source?.kind === "url" || !url) setSource(this.source?.kind === "blob" ? this.source : null);
+    });
+
+    const submit = async () => {
+      if (!this.source) {
+        status.setText("Choose, drop or paste an image, or paste an image link.");
+        return;
+      }
+      save.setDisabled(true);
+      save.setButtonText("Saving...");
+      status.setText("");
       try {
-        const data = fromFile
-          ? await this.file!.arrayBuffer()
-          : (await requestUrl({ url: this.url, headers: { "User-Agent": USER_AGENT } })).arrayBuffer;
+        const data =
+          this.source.kind === "blob"
+            ? await this.source.blob.arrayBuffer()
+            : (await requestUrl({ url: this.source.url, headers: { "User-Agent": USER_AGENT } })).arrayBuffer;
         await this.onPhoto(data);
         this.close();
       } catch (e) {
-        button.setDisabled(false);
-        status.setText(`Could not get that image: ${e instanceof Error ? e.message : String(e)}`);
+        save.setDisabled(false);
+        save.setButtonText("Set photo");
+        status.setText(`Couldn't get that image: ${e instanceof Error ? e.message : String(e)}`);
       }
     };
-    new Setting(contentEl).addButton((b) => {
-      button = b;
-      b.setButtonText("Set photo").setCta().onClick(() => void save());
+    save.onClick(() => void submit());
+    // Enter anywhere except on a button or the drop area sets the photo.
+    this.scope.register([], "Enter", (e) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("button, .cooklang-photo-drop")) return true;
+      void submit();
+      return false;
     });
+
+    window.setTimeout(() => link.focus(), 0);
   }
 
   onClose() {
+    if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
     this.contentEl.empty();
   }
 }

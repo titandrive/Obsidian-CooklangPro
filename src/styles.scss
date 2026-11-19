@@ -871,30 +871,100 @@ button.cook-pill.is-clickable {
 }
 
 /* Set recipe photo window */
-.cooklang-photo-tabs {
-  display: flex;
-  gap: var(--size-4-2, 8px);
-  margin-bottom: var(--size-4-2, 8px);
+.cooklang-photo-modal {
+  width: min(480px, 92vw);
 
-  button.is-active {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
+  .cooklang-photo-recipe {
+    color: var(--text-muted);
+    margin: calc(-1 * var(--size-4-2, 8px)) 0 var(--size-4-3, 12px);
   }
-}
 
-.cooklang-photo-pane {
-  display: none;
+  .cooklang-photo-drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--size-4-2, 8px);
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border: 2px dashed var(--background-modifier-border);
+    border-radius: var(--radius-l, 12px);
+    background: var(--background-secondary);
+    color: var(--text-muted);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 120ms ease;
 
-  &.is-active {
-    display: block;
+    &:hover, &:focus-visible, &.is-dragging {
+      border-color: var(--interactive-accent);
+      outline: none;
+    }
+
+    &.has-image {
+      border-style: solid;
+    }
   }
-}
 
-.cooklang-photo-preview {
-  display: block;
-  max-width: 100%;
-  max-height: 220px;
-  margin: var(--size-4-2, 8px) auto;
-  border-radius: var(--radius-m, 8px);
-  object-fit: cover;
+  .cooklang-photo-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .cooklang-photo-hint {
+    padding: 0 var(--size-4-4, 16px);
+    font-size: var(--font-ui-small);
+  }
+
+  .has-image .cooklang-photo-hint,
+  .has-image .cooklang-photo-caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: var(--font-ui-smaller);
+  }
+
+  .has-image .cooklang-photo-hint {
+    bottom: 0;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .cooklang-photo-drop:hover .cooklang-photo-hint,
+  .cooklang-photo-drop:focus-visible .cooklang-photo-hint {
+    opacity: 1;
+  }
+
+  .has-image .cooklang-photo-caption {
+    top: 0;
+    left: auto;
+    right: auto;
+    margin: 8px;
+    border-radius: 999px;
+  }
+
+  .cooklang-photo-caption:empty {
+    display: none;
+  }
+
+  .cooklang-photo-link {
+    margin-top: var(--size-4-3, 12px);
+
+    input {
+      width: 100%;
+    }
+  }
+
+  .cooklang-photo-status {
+    min-height: 1.4em;
+    margin-top: var(--size-4-2, 8px);
+    color: var(--text-error);
+    font-size: var(--font-ui-small);
+  }
 }
