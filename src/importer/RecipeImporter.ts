@@ -1,4 +1,4 @@
-import { App, Component, Menu, Modal, Notice, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, requestUrl, setIcon } from "obsidian";
+import { App, Component, Menu, Modal, Notice, Platform, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, requestUrl, setIcon } from "obsidian";
 import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
 import { DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
@@ -583,6 +583,21 @@ class ImportModal extends Modal {
   onOpen() {
     this.setTitle("Import recipe");
     this.modalEl.addClass("recipe-importer-modal");
+    // Keyboard: Ctrl/Cmd+Enter does the screen's main action anywhere in the dialog, Enter does it from a
+    // one-line field, Ctrl/Cmd+1 and 2 switch tabs, Alt+Left goes back. Escape closes (and cancels).
+    this.scope.register(["Mod"], "Enter", () => {
+      this.submit?.();
+      return false;
+    });
+    this.scope.register([], "Enter", (e) => {
+      const t = e.target as HTMLElement | null;
+      if (!(t instanceof HTMLInputElement) || t.type !== "text" || !this.submit) return true;
+      this.submit();
+      return false;
+    });
+    this.scope.register(["Mod"], "1", () => (this.tabKeys?.("link"), false));
+    this.scope.register(["Mod"], "2", () => (this.tabKeys?.("text"), false));
+    this.scope.register(["Alt"], "ArrowLeft", () => (this.back?.(), false));
     this.showUrlStep();
   }
 
@@ -592,12 +607,44 @@ class ImportModal extends Modal {
 
   /** Step 1: the link. As soon as a link is entered, the page is fetched and checked. */
   private pastedText = "";
+  /** The current screen's main action, its "back", and tab switching (first screen only). */
+  private submit: (() => void) | null = null;
+  private back: (() => void) | null = null;
+  private tabKeys: ((tab: "link" | "text") => void) | null = null;
+
+  private resetKeys() {
+    this.submit = this.back = this.tabKeys = null;
+  }
+
+  /** A muted line of keyboard hints under the buttons. */
+  private keyHints(...hints: string[]) {
+    const mod = Platform.isMacOS ? "⌘" : "Ctrl";
+    this.contentEl.createDiv({ cls: "recipe-importer-keys", text: hints.map((h) => h.replace(/Mod/g, mod)).join("   ·   ") });
+  }
 
   /** Tabs at the top of the first screen: a link, or pasted text. */
   private tabs(active: "link" | "text") {
-    const bar = this.contentEl.createDiv({ cls: "recipe-importer-tabs" });
+    this.resetKeys();
+    const openTab = (id: "link" | "text") => {
+      if (id === active) return;
+      if (id === "link") this.showUrlStep();
+      else this.showTextStep();
+    };
+    this.tabKeys = openTab;
+    const bar = this.contentEl.createDiv({ cls: "recipe-importer-tabs", attr: { role: "tablist" } });
+    // Left and Right move between the tabs when one has focus.
+    bar.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        openTab(active === "link" ? "text" : "link");
+        window.setTimeout(() => this.contentEl.querySelector<HTMLElement>(".recipe-importer-tab.is-active")?.focus(), 0);
+      }
+    });
     const tab = (id: "link" | "text", icon: string, label: string, open: () => void) => {
-      const b = bar.createEl("button", { cls: "recipe-importer-tab" + (id === active ? " is-active" : "") });
+      const b = bar.createEl("button", {
+        cls: "recipe-importer-tab" + (id === active ? " is-active" : ""),
+        attr: { role: "tab", "aria-selected": String(id === active), tabindex: id === active ? "0" : "-1" },
+      });
       setIcon(b.createSpan({ cls: "recipe-importer-check-icon" }), icon);
       b.createSpan({ text: label });
       b.addEventListener("click", () => id !== active && open());
@@ -643,10 +690,9 @@ class ImportModal extends Modal {
       if (claude && area.value.trim().length >= 40) this.showProgressStep(this.plugin.textPage(area.value.trim()));
     };
     area.addEventListener("input", update);
-    // Ctrl/Cmd+Enter imports; plain Enter is a new line.
-    area.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(); }
-    });
+    // Plain Enter is a new line here; Ctrl/Cmd+Enter imports (see onOpen).
+    this.submit = go;
+    this.keyHints("Mod+Enter import", "Mod+1 / Mod+2 switch tab");
     update();
     window.setTimeout(() => area.focus(), 0);
   }
@@ -750,9 +796,8 @@ class ImportModal extends Modal {
       if (!this.page || this.page.url !== url.trim()) await runCheck();
       if (this.page && this.plugin.canImport(this.page)) this.showProgressStep(this.page);
     };
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") void go();
-    });
+    this.submit = () => void go();
+    this.keyHints("Enter import", "Mod+1 / Mod+2 switch tab");
     if (url) void runCheck();
   }
 
@@ -760,6 +805,7 @@ class ImportModal extends Modal {
   private showProgressStep(page: Page) {
     const { contentEl } = this;
     contentEl.empty();
+    this.resetKeys();
     const claude = !!this.plugin.settings.apiKey;
     const list = contentEl.createDiv({ cls: "recipe-importer-progress" });
     const step = (text: string) => {
@@ -785,11 +831,17 @@ class ImportModal extends Modal {
     const buttons = new Setting(contentEl);
     this.abort = new AbortController();
     const signal = this.abort.signal;
-    buttons.addButton((b) => b.setButtonText("Cancel").onClick(() => {
+    const cancel = () => {
       this.abort?.abort();
       if (page.text !== undefined) this.showTextStep();
       else this.showUrlStep(page.url);
-    }));
+    };
+    buttons.addButton((b) => {
+      b.setButtonText("Cancel").onClick(cancel);
+      window.setTimeout(() => b.buttonEl.focus(), 0);
+    });
+    this.back = cancel;
+    this.keyHints("Alt+← cancel", "Esc close");
 
     // Progress from the streamed answer: steps written out of the steps in the recipe data.
     const total = page.usable && page.recipe ? page.recipe.groups.reduce((n, g) => n + g.steps.length, 0) : 0;
@@ -825,7 +877,11 @@ class ImportModal extends Modal {
         if (signal.aborted) return;
         bar.hide();
         convert.set("failed", describeError(e));
-        buttons.addButton((b) => b.setButtonText("Try again").setCta().onClick(() => this.showProgressStep(page)));
+        buttons.addButton((b) => {
+          b.setButtonText("Try again").setCta().onClick(() => this.showProgressStep(page));
+          b.buttonEl.focus();
+        });
+        this.submit = () => this.showProgressStep(page);
       }
     })();
   }
@@ -834,6 +890,7 @@ class ImportModal extends Modal {
     const p = this.prepared!;
     const { contentEl } = this;
     contentEl.empty();
+    this.resetKeys();
     const folders = this.plugin.recipeFolders();
     let title = p.recipe?.name ?? (/^title:\s*"?(.*?)"?\s*$/m.exec(p.markdown)?.[1] || "New recipe");
     let folder = guessFolder(p.recipe ?? noteAsRecipe(p.markdown, title), folders) ?? folders[0] ?? "";
@@ -848,6 +905,10 @@ class ImportModal extends Modal {
     new Setting(contentEl).setName("Name").addText((t) => {
       t.setValue(title).onChange((v) => (title = v));
       t.inputEl.addClass("recipe-importer-url");
+      window.setTimeout(() => {
+        t.inputEl.focus();
+        t.inputEl.select();
+      }, 0);
     });
     const NEW = "\u0000new";
     let newFolder = "";
@@ -868,13 +929,12 @@ class ImportModal extends Modal {
     newFolderSetting.settingEl.hide();
     new Setting(contentEl)
       .addButton((b) =>
-        b.setButtonText("Back").onClick(() => {
-          this.prepared = null;
-          if (p.url) this.showUrlStep(p.url);
-          else this.showTextStep();
-        }),
+        b.setButtonText("Back").onClick(() => this.back?.()),
       )
-      .addButton((b) =>
+      .addButton((b) => {
+        this.submit = () => {
+          if (!b.disabled) b.buttonEl.click();
+        };
         b
           .setButtonText("Save recipe")
           .setCta()
@@ -899,8 +959,14 @@ class ImportModal extends Modal {
               b.setButtonText("Save recipe");
               new Notice(`Could not save the recipe: ${e instanceof Error ? e.message : String(e)}`);
             }
-          }),
-      );
+          });
+      });
+    this.back = () => {
+      this.prepared = null;
+      if (p.url) this.showUrlStep(p.url);
+      else this.showTextStep();
+    };
+    this.keyHints("Enter save", "Alt+← back", "Esc close");
   }
 
   onClose() {

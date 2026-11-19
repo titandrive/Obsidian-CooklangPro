@@ -706,6 +706,13 @@ button.cook-pill.is-clickable {
   margin-bottom: 0.5em;
 }
 
+.recipe-importer-keys {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: right;
+  margin-top: -0.4em;
+}
+
 .recipe-importer-check.is-ok-inline { color: var(--text-success); }
 
 .recipe-importer-check {
