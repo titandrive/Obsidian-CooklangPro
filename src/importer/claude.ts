@@ -29,7 +29,7 @@ Body rules:
 - Do not mark cookware. Never write # in the body: Obsidian would read it as a tag.
 - Timers: ~{10%minutes}, ~{10-14%minutes}, ~{2%hours} for cooking, baking, resting and marinating times in the text.
 - Sections: a line "= Section name" before each part when the recipe has parts (dough, filling, sauce).
-- Notes: lines starting with "> " for tips, yield ("> Makes 24 cookies.") and nutrition. Put them at the end.
+- Notes: lines starting with "> " for tips, yield ("> Makes 24 cookies.") and nutrition. Put them at the end, with a blank line between notes; back-to-back "> " lines merge into one note.
 - Never put "--", "[-", or a stray @ or ~ in prose (write "No. 1", "about"). No Markdown headings, lists, bold or links in the body. A line starting with = is a section and > is a note.`;
 
 /** Checks the key against the API (a free models lookup) and returns a message for the settings screen. */
