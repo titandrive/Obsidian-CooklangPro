@@ -209,10 +209,12 @@
 /* Pills */
 // Tags are buttons that search the vault; keep them looking like the other pills.
 button.cook-pill.is-clickable {
-  font: inherit; color: inherit; cursor: pointer; box-shadow: none; height: auto;
+  // Undo Obsidian's button styling only; size and colour come from .cook-pill and .cook-pill-tag.
+  font-family: inherit; font-weight: inherit; cursor: pointer; box-shadow: none; height: auto;
   &:hover { text-decoration: underline; }
 }
 .cook-pills { display: flex; flex-wrap: wrap; gap: var(--size-2-2, 6px); }
+.cook-tags { margin-top: var(--size-2-2, 6px); }
 .cook-pill {
   display: inline-flex; align-items: center; gap: 5px;
   box-sizing: border-box; min-width: 0; max-width: 100%; min-height: 26px; padding: 2px 11px;

@@ -8,7 +8,10 @@
     let { model, mainImage }: { model: RecipeRenderModel; mainImage: TFile | string | null } = $props();
     let title = $derived(model.recipe.title?.trim() || (model.file && recipeName(model.file.path)) || 'Recipe');
     let description = $derived(model.recipe.description?.trim());
-    let pills = $derived(buildMetaPills(model.recipe, model.state.displayServings));
+    let allPills = $derived(buildMetaPills(model.recipe, model.state.displayServings));
+    // Details (time, servings, source...) on one line, tags on the next.
+    let pills = $derived(allPills.filter(pill => pill.kind !== 'tag'));
+    let tags = $derived(allPills.filter(pill => pill.kind === 'tag'));
     let mainImageUrl = $derived(
         typeof mainImage === 'string' ? mainImage : mainImage ? model.host.getResourcePath(mainImage) : null
     );
@@ -33,7 +36,19 @@
                             {#if pill.icon}<span class="cook-pill-icon" aria-hidden="true">{pill.icon}</span>{/if}
                             {pill.text}
                         </a>
-                    {:else if pill.kind === 'tag' && model.interactive && model.host.searchTag}
+                    {:else}
+                        <span class="cook-pill">
+                            {#if pill.icon}<span class="cook-pill-icon" aria-hidden="true">{pill.icon}</span>{/if}
+                            {pill.text}
+                        </span>
+                    {/if}
+                {/each}
+            </div>
+        {/if}
+        {#if tags.length}
+            <div class="cook-pills cook-tags" aria-label="Tags">
+                {#each tags as pill}
+                    {#if model.interactive && model.host.searchTag}
                         <button
                             type="button"
                             class="cook-pill cook-pill-tag is-clickable"
@@ -41,10 +56,7 @@
                             onclick={() => model.host.searchTag?.(pill.text.replace(/^#/, ''))}
                         >{pill.text}</button>
                     {:else}
-                        <span class:cook-pill-tag={pill.kind === 'tag'} class="cook-pill">
-                            {#if pill.icon}<span class="cook-pill-icon" aria-hidden="true">{pill.icon}</span>{/if}
-                            {pill.text}
-                        </span>
+                        <span class="cook-pill cook-pill-tag">{pill.text}</span>
                     {/if}
                 {/each}
             </div>
