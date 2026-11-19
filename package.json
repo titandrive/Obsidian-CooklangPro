@@ -1,6 +1,6 @@
 {
   "name": "cooklang-pro",
-  "version": "0.15.22",
+  "version": "0.15.23",
   "description": "Edit, display and import Cooklang recipes, with a recipe browser and ratings. A fork of Cooklang Editor.",
   "main": "main.js",
   "type": "module",
@@ -30,6 +30,7 @@
     "@lezer/highlight": "^1.2.5",
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^1.0.2",
     "@rollup/plugin-typescript": "^12.3.1",
     "@rollup/plugin-url": "^8.0.2",
     "@rollup/plugin-wasm": "^6.2.2",

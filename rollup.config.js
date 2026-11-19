@@ -4,6 +4,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import url from '@rollup/plugin-url';
 import wasm from '@rollup/plugin-wasm';
 import svelte from 'rollup-plugin-svelte';
+import terser from '@rollup/plugin-terser';
 import * as sass from 'sass';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -129,6 +130,8 @@ export default {
     url({
       include: ['**/*.mp3'],
       limit: 100000
-    })
-  ]
+    }),
+    // Minify release builds so main.js stays well under Obsidian Sync's 5 MB file limit. Keep the banner comment.
+    isProd && terser({ format: { comments: /GENERATED\/BUNDLED FILE BY ROLLUP/ } })
+  ].filter(Boolean)
 };
