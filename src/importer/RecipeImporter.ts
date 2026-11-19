@@ -44,7 +44,9 @@ interface Prepared {
 
 /** An Obsidian base listing every recipe note (recipe: true), with photo cards and a table. */
 function recipeBaseContent(): string {
-  const cardProps = ["file.name", "formula.stars", "note.time", "note.servings", "note.tags"];
+  // Compact cards: the name, "30 minutes · 6 servings", and tags. The heart and stars are overlaid on the
+  // photo and the property labels hidden by the plugin (see syncBrowser and the styles).
+  const cardProps = ["file.name", "formula.details", "note.tags"];
   const cards = (name: string, extra: string[] = [], sort: [string, string][] = [["file.name", "ASC"]]) => [
     "  - type: cards",
     `    name: ${name}`,
@@ -65,6 +67,7 @@ function recipeBaseContent(): string {
     // A red heart for favorites, then one filled star per rating point. Styled by styles.css.
     `  stars: 'if(favorite == true, [icon("heart")], []) + [1,2,3,4,5].filter(value <= number(rating)).map(icon("star"))'`,
     // The table shows them as separate Favorite and Rating columns.
+    `  details: 'if(time, time, "") + if(time && servings, " · ", "") + if(servings, servings + if(servings == 1, " serving", " servings"), "")'`,
     `  favorite_icon: 'if(favorite == true, [icon("heart")], [])'`,
     `  rating_stars: '[1,2,3,4,5].filter(value <= number(rating)).map(icon("star"))'`,
     "properties:",
@@ -72,6 +75,8 @@ function recipeBaseContent(): string {
     "    displayName: Recipe",
     "  file.folder:",
     "    displayName: Folder",
+    "  formula.details:",
+    "    displayName: Details",
     "  formula.stars:",
     "    displayName: Rating",
     "  formula.favorite_icon:",
@@ -191,20 +196,33 @@ export class RecipeImporter extends Component {
           queued = true;
           window.requestAnimationFrame(() => {
             queued = false;
-            syncBrowserRows(this.app, view, (f) => this.isRecipe(f));
+            this.syncBrowser(view);
           });
         });
         observer.observe(el, { childList: true, subtree: true });
         this.register(() => observer.disconnect());
       }
-      syncBrowserRows(this.app, view, (f) => this.isRecipe(f));
+      this.syncBrowser(view);
     }
   }
 
   private refreshBrowsers() {
-    for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
-      syncBrowserRows(this.app, leaf.view, (f) => this.isRecipe(f));
+    for (const leaf of this.app.workspace.getLeavesOfType("bases")) this.syncBrowser(leaf.view);
+  }
+
+  /**
+   * The recipe browser gets compact cards (no property labels, heart and stars on the photo); other bases
+   * that list recipes only get the clickable row in their stars columns.
+   */
+  private syncBrowser(view: any) {
+    const el: HTMLElement | undefined = view?.containerEl;
+    const isBrowser = view?.file instanceof TFile && view.file.path === this.browserPath();
+    if (el && el.hasClass("cooklang-recipe-browser") !== isBrowser) {
+      el.toggleClass("cooklang-recipe-browser", isBrowser);
+      // Card rows are measured from the styles; re-measure now that labels are hidden or shown.
+      window.requestAnimationFrame(() => view?.controller?.view?.onResize?.());
     }
+    syncBrowserRows(this.app, view, (f) => this.isRecipe(f), isBrowser);
   }
 
   onunload() {

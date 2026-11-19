@@ -113,7 +113,7 @@ const BROWSER_PROPS: [string, RowParts][] = [
  * The recipe browser: on every card or table row that shows the stars formula, put a clickable row in
  * its place. Uses the view's own list of cards (items) or rows, which pairs each element with its file.
  */
-export function syncBrowserRows(app: App, baseView: any, isRecipe: (f: TFile) => boolean) {
+export function syncBrowserRows(app: App, baseView: any, isRecipe: (f: TFile) => boolean, overlay = false) {
   const view = baseView?.controller?.view;
   const items: any[] | undefined = Array.isArray(view?.items) ? view.items : Array.isArray(view?.rows) ? view.rows : undefined;
   if (!items) return;
@@ -121,6 +121,13 @@ export function syncBrowserRows(app: App, baseView: any, isRecipe: (f: TFile) =>
     const el: HTMLElement | undefined = item?.el;
     const file: TFile | undefined = item?.entry?.file;
     if (!el || !(file instanceof TFile) || !isRecipe(file)) continue;
+    // Cards: the heart and stars sit on the photo (heart top-right, stars bottom-centre).
+    const cover: HTMLElement | undefined = item?.coverEl;
+    if (overlay && cover instanceof HTMLElement) {
+      cover.addClass("recipe-importer-has-overlay");
+      ensureRatingRow(app, cover, file, "is-overlay", "both");
+      continue;
+    }
     for (const [prop, parts] of BROWSER_PROPS) {
       const line = el.querySelector<HTMLElement>(
         `[data-property="${prop}"] .bases-cards-line, [data-property="${prop}"] .bases-table-cell`,

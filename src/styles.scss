@@ -808,3 +808,58 @@ button.cook-pill.is-clickable {
   gap: 4px;
   flex-wrap: nowrap;
 }
+
+/* Recipe browser cards: compact rows, with the heart and stars over the photo. */
+.cooklang-recipe-browser .bases-cards-label {
+  display: none;
+}
+
+.recipe-importer-has-overlay {
+  position: relative;
+}
+
+.recipe-importer-rating.is-overlay {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  pointer-events: none;
+
+  .recipe-importer-favorite,
+  .recipe-importer-stars {
+    position: absolute;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .recipe-importer-favorite {
+    --icon-size: 18px;
+    top: 8px;
+    right: 8px;
+    padding: 5px;
+    border-radius: 50%;
+  }
+
+  .recipe-importer-stars {
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    gap: 1px;
+    padding: 2px 6px;
+    border-radius: 999px;
+  }
+
+  .recipe-importer-rating-star {
+    --icon-size: 16px;
+    padding: 2px;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .recipe-importer-favorite.is-favorite {
+    color: var(--color-red);
+  }
+
+  .recipe-importer-rating-star.is-filled {
+    color: var(--color-yellow);
+  }
+}
