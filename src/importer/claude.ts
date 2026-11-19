@@ -53,6 +53,7 @@ export async function checkKey(apiKey: string, model: string): Promise<{ ok: boo
 
 /** Friendlier wording for errors during an import. */
 export function describeError(e: unknown): string {
+  if (e instanceof Anthropic.APIUserAbortError) return "Import cancelled.";
   if (e instanceof Anthropic.AuthenticationError) return "Claude rejected the API key. Check it in the Recipe Importer settings.";
   if (e instanceof Anthropic.RateLimitError) return "Claude is rate limiting requests. Wait a minute and try again.";
   if (e instanceof Anthropic.BadRequestError && /credit|balance|billing/i.test(e.message)) return "Your Anthropic account is out of credits. Add some under Billing on platform.claude.com.";
@@ -61,27 +62,43 @@ export function describeError(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+export interface ClaudeProgress {
+  /** "thinking" until the first words of the answer arrive, then "writing". */
+  phase: "thinking" | "writing";
+  /** The answer so far. */
+  text: string;
+}
+
 export async function convertWithClaude(opts: {
   apiKey: string;
   model: string;
   recipe: RecipeData | null;
   url: string;
   pageText?: string;
+  onProgress?: (p: ClaudeProgress) => void;
+  signal?: AbortSignal;
 }): Promise<string> {
   const client = new Anthropic({ apiKey: opts.apiKey, dangerouslyAllowBrowser: true });
   const source = opts.recipe
     ? `Source URL: ${opts.url}\n\nschema.org Recipe data from the page:\n${JSON.stringify(opts.recipe.raw, null, 1)}`
     : `Source URL: ${opts.url}\n\nThe page had no structured recipe data. Its text:\n${opts.pageText ?? ""}`;
 
-  const response = await client.beta.messages.create({
-    model: opts.model || DEFAULT_MODEL,
-    max_tokens: 16000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: { effort: "medium" },
-    system: INSTRUCTIONS,
-    messages: [{ role: "user", content: source }],
-  });
+  // Streamed, so the import dialog can show how far along the conversion is.
+  const stream = client.beta.messages.stream(
+    {
+      model: opts.model || DEFAULT_MODEL,
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "medium" },
+      system: INSTRUCTIONS,
+      messages: [{ role: "user", content: source }],
+    },
+    { signal: opts.signal },
+  );
+  opts.onProgress?.({ phase: "thinking", text: "" });
+  stream.on("text", (_delta, snapshot) => opts.onProgress?.({ phase: "writing", text: snapshot }));
+  const response = await stream.finalMessage();
 
   if (response.stop_reason === "refusal") {
     throw new Error("Claude declined to convert this page.");

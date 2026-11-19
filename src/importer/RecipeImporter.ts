@@ -1,7 +1,7 @@
 import { App, Component, Menu, Modal, Notice, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, requestUrl, setIcon } from "obsidian";
 import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
-import { DEFAULT_MODEL, checkKey, convertWithClaude, describeError } from "./claude";
+import { DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
 import { syncBrowserRows } from "./rating";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
 
@@ -41,6 +41,14 @@ export interface ImporterHost extends Plugin {
 }
 
 const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+
+interface Page {
+  url: string;
+  html: string;
+  recipe: RecipeData | null;
+  /** The recipe data has ingredients or steps. */
+  usable: boolean;
+}
 
 interface Prepared {
   url: string;
@@ -377,14 +385,25 @@ export class RecipeImporter extends Component {
       .sort((a, b) => a.localeCompare(b));
   }
 
-  async prepare(url: string): Promise<Prepared> {
+  /** Downloads a page and reads its recipe data, without converting it. */
+  async fetchPage(url: string): Promise<Page> {
     const res = await requestUrl({ url, headers: { "User-Agent": USER_AGENT, Accept: "text/html" }, throw: false });
     if (res.status >= 400) throw new Error(`The site answered with error ${res.status}.`);
     const html = res.text;
     const json = findRecipeJsonLd(html);
     const recipe = json ? normalizeRecipe(json, url) : null;
-    const usable = recipe && (recipe.ingredients.length || recipe.groups.length);
+    const usable = !!recipe && (recipe.ingredients.length > 0 || recipe.groups.length > 0);
+    return { url, html, recipe, usable };
+  }
 
+  /** Whether a fetched page can be imported, and how. */
+  canImport(page: Page): boolean {
+    return page.usable || !!this.settings.apiKey;
+  }
+
+  /** Converts a fetched page into a Cooklang recipe note. */
+  async convert(page: Page, onProgress?: (p: ClaudeProgress) => void, signal?: AbortSignal): Promise<Prepared> {
+    const { url, recipe, usable, html } = page;
     if (this.settings.apiKey) {
       const markdown = await convertWithClaude({
         apiKey: this.settings.apiKey,
@@ -392,6 +411,8 @@ export class RecipeImporter extends Component {
         recipe: usable ? recipe : null,
         url,
         pageText: usable ? undefined : pageText(html),
+        onProgress,
+        signal,
       });
       return { url, recipe, markdown, method: "claude" };
     }
@@ -403,6 +424,10 @@ export class RecipeImporter extends Component {
       );
     }
     return { url, recipe, markdown: toCooklang(recipe!), method: "rules" };
+  }
+
+  async prepare(url: string): Promise<Prepared> {
+    return this.convert(await this.fetchPage(url));
   }
 
   async save(p: Prepared, title: string, folder: string): Promise<TFile> {
@@ -552,41 +577,186 @@ class ImportModal extends Modal {
     this.showUrlStep();
   }
 
-  private showUrlStep() {
+  private page: Page | null = null;
+  private checkToken = 0;
+  private abort: AbortController | null = null;
+
+  /** Step 1: the link. As soon as a link is entered, the page is fetched and checked. */
+  private showUrlStep(initialUrl = "") {
     const { contentEl } = this;
     contentEl.empty();
-    let url = "";
-    const status = contentEl.createDiv({ cls: "recipe-importer-status" });
-    const go = async () => {
-      url = url.trim();
-      if (!/^https?:\/\//i.test(url)) {
-        status.setText("Enter a link starting with http:// or https://");
-        return;
-      }
-      status.setText(this.plugin.settings.apiKey ? "Fetching the page and converting it with Claude..." : "Fetching the page...");
-      button.setDisabled(true);
-      try {
-        this.prepared = await this.plugin.prepare(url);
-        this.showSaveStep();
-      } catch (e) {
-        status.setText(describeError(e));
-        button.setDisabled(false);
-      }
-    };
+    let url = initialUrl;
+    let input!: HTMLInputElement;
     new Setting(contentEl).setName("Recipe link").addText((t) => {
-      t.setPlaceholder("https://...").onChange((v) => (url = v));
-      t.inputEl.addClass("recipe-importer-url");
-      t.inputEl.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") void go();
-      });
-      window.setTimeout(() => t.inputEl.focus(), 0);
+      t.setPlaceholder("https://...").setValue(url);
+      input = t.inputEl;
+      input.addClass("recipe-importer-url");
+      window.setTimeout(() => input.focus(), 0);
     });
-    let button: import("obsidian").ButtonComponent;
+    const check = contentEl.createDiv({ cls: "recipe-importer-check" });
+    let button!: import("obsidian").ButtonComponent;
     new Setting(contentEl).addButton((b) => {
       button = b;
-      b.setButtonText("Import").setCta().onClick(() => void go());
+      b.setButtonText("Import").setCta().setDisabled(true).onClick(() => void go());
     });
-    contentEl.appendChild(status);
+
+    const row = (icon: string, text: string, cls = "") => {
+      check.empty();
+      check.className = `recipe-importer-check ${cls}`.trim();
+      const i = check.createSpan({ cls: "recipe-importer-check-icon" });
+      setIcon(i, icon);
+      check.createSpan({ text });
+    };
+    const showPage = (page: Page) => {
+      check.empty();
+      const r = page.recipe;
+      const key = !!this.plugin.settings.apiKey;
+      if (page.usable && r) {
+        check.className = "recipe-importer-check is-ok";
+        if (r.imageUrl) check.createEl("img", { cls: "recipe-importer-check-img", attr: { src: new URL(r.imageUrl, page.url).href, alt: "" } });
+        const body = check.createDiv({ cls: "recipe-importer-check-body" });
+        body.createDiv({ cls: "recipe-importer-check-name", text: r.name || "Untitled recipe" });
+        const steps = r.groups.reduce((n, g) => n + g.steps.length, 0);
+        const facts = [
+          plural(r.ingredients.length, "ingredient"),
+          plural(steps, "step"),
+          r.totalMinutes ? `${r.totalMinutes} minutes` : "",
+          r.imageUrl ? "photo" : "no photo",
+        ].filter(Boolean);
+        body.createDiv({ cls: "recipe-importer-check-facts", text: facts.join(" · ") });
+        const how = body.createDiv({ cls: "recipe-importer-check-how" });
+        setIcon(how.createSpan({ cls: "recipe-importer-check-icon" }), "circle-check");
+        how.createSpan({ text: key ? "Recipe found. Claude will convert it." : "Recipe found. The built-in converter will convert it." });
+      } else if (key) {
+        row("triangle-alert", r
+          ? "The page's recipe data has no ingredients or steps. Claude will read the page text instead."
+          : "No recipe data on this page. Claude will read the page text instead.", "is-warning");
+      } else {
+        row("circle-x", r
+          ? "The page's recipe data has no ingredients or steps. Add a Claude API key in settings to import it from the page text."
+          : "No recipe data on this page. Add a Claude API key in settings to import it from the page text.", "is-error");
+      }
+    };
+
+    const runCheck = async () => {
+      const token = ++this.checkToken;
+      this.page = null;
+      button.setDisabled(true);
+      const u = url.trim();
+      if (!u) {
+        check.empty();
+        check.className = "recipe-importer-check";
+        return;
+      }
+      if (!/^https?:\/\/\S+\.\S+/i.test(u)) {
+        row("circle-x", "Enter a link starting with http:// or https://", "is-error");
+        return;
+      }
+      row("loader", "Checking the page...", "is-busy");
+      try {
+        const page = await this.plugin.fetchPage(u);
+        if (token !== this.checkToken) return;
+        this.page = page;
+        showPage(page);
+        button.setDisabled(!this.plugin.canImport(page));
+      } catch (e) {
+        if (token !== this.checkToken) return;
+        row("circle-x", `Couldn't load the page: ${describeError(e)}`, "is-error");
+      }
+    };
+    let timer = 0;
+    input.addEventListener("input", () => {
+      url = input.value;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void runCheck(), 400);
+    });
+    input.addEventListener("paste", () => window.setTimeout(() => {
+      url = input.value;
+      window.clearTimeout(timer);
+      void runCheck();
+    }, 0));
+    const go = async () => {
+      window.clearTimeout(timer);
+      if (!this.page || this.page.url !== url.trim()) await runCheck();
+      if (this.page && this.plugin.canImport(this.page)) this.showProgressStep(this.page);
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void go();
+    });
+    if (url) void runCheck();
+  }
+
+  /** Step 2: converting, with progress. */
+  private showProgressStep(page: Page) {
+    const { contentEl } = this;
+    contentEl.empty();
+    const claude = !!this.plugin.settings.apiKey;
+    const list = contentEl.createDiv({ cls: "recipe-importer-progress" });
+    const step = (text: string) => {
+      const el = list.createDiv({ cls: "recipe-importer-step" });
+      const icon = el.createSpan({ cls: "recipe-importer-check-icon" });
+      const label = el.createSpan({ text });
+      const detail = el.createDiv({ cls: "recipe-importer-step-detail" });
+      const set = (state: "waiting" | "busy" | "done" | "failed", info = "") => {
+        el.className = `recipe-importer-step is-${state}`;
+        setIcon(icon, { waiting: "circle", busy: "loader", done: "circle-check", failed: "circle-x" }[state]);
+        detail.setText(info);
+      };
+      set("waiting");
+      return { el, set, label };
+    };
+    const read = step("Read the recipe from the page");
+    const convert = step(claude ? "Convert with Claude" : "Convert to Cooklang");
+    const bar = convert.el.createEl("progress", { cls: "recipe-importer-bar" });
+    bar.max = 1;
+    bar.hide();
+    read.set("done", page.usable && page.recipe ? page.recipe.name : "From the page text");
+
+    const buttons = new Setting(contentEl);
+    this.abort = new AbortController();
+    const signal = this.abort.signal;
+    buttons.addButton((b) => b.setButtonText("Cancel").onClick(() => {
+      this.abort?.abort();
+      this.showUrlStep(page.url);
+    }));
+
+    // Progress from the streamed answer: steps written out of the steps in the recipe data.
+    const total = page.usable && page.recipe ? page.recipe.groups.reduce((n, g) => n + g.steps.length, 0) : 0;
+    const started = Date.now();
+    const onProgress = (p: ClaudeProgress) => {
+      if (signal.aborted) return;
+      if (p.phase === "thinking") {
+        bar.removeAttribute("value");
+        bar.show();
+        convert.set("busy", "Claude is reading the recipe...");
+        return;
+      }
+      const written = writtenSteps(p.text);
+      if (total) {
+        bar.value = Math.min(0.97, written / total);
+        convert.set("busy", written ? `Writing step ${Math.min(written + 1, total)} of ${total}` : "Writing the ingredients and details...");
+      } else {
+        convert.set("busy", written ? `Writing step ${written + 1}...` : "Writing the ingredients and details...");
+      }
+    };
+
+    void (async () => {
+      convert.set("busy", claude ? "Sending to Claude..." : "");
+      try {
+        const prepared = await this.plugin.convert(page, onProgress, signal);
+        if (signal.aborted) return;
+        bar.value = 1;
+        const secs = Math.round((Date.now() - started) / 1000);
+        convert.set("done", claude ? `Done in ${secs} seconds` : "");
+        this.prepared = prepared;
+        window.setTimeout(() => !signal.aborted && this.showSaveStep(), 400);
+      } catch (e) {
+        if (signal.aborted) return;
+        bar.hide();
+        convert.set("failed", describeError(e));
+        buttons.addButton((b) => b.setButtonText("Try again").setCta().onClick(() => this.showProgressStep(page)));
+      }
+    })();
   }
 
   private showSaveStep() {
@@ -629,7 +799,7 @@ class ImportModal extends Modal {
       .addButton((b) =>
         b.setButtonText("Back").onClick(() => {
           this.prepared = null;
-          this.showUrlStep();
+          this.showUrlStep(p.url);
         }),
       )
       .addButton((b) =>
@@ -646,6 +816,7 @@ class ImportModal extends Modal {
               }
             }
             b.setDisabled(true);
+            b.setButtonText(this.plugin.settings.saveImage && p.recipe?.imageUrl ? "Saving recipe and photo..." : "Saving...");
             try {
               const file = await this.plugin.save(p, title, target);
               this.close();
@@ -653,6 +824,7 @@ class ImportModal extends Modal {
               if (this.plugin.settings.openAfterImport) await this.plugin.open(file);
             } catch (e) {
               b.setDisabled(false);
+              b.setButtonText("Save recipe");
               new Notice(`Could not save the recipe: ${e instanceof Error ? e.message : String(e)}`);
             }
           }),
@@ -660,8 +832,25 @@ class ImportModal extends Modal {
   }
 
   onClose() {
+    this.abort?.abort();
+    this.checkToken++;
     this.contentEl.empty();
   }
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/** Steps written so far in a streamed recipe note: finished paragraphs after the front matter, not notes or sections. */
+export function writtenSteps(text: string): number {
+  const end = text.indexOf("\n---", 3);
+  if (!text.startsWith("---") || end < 0) return 0;
+  const body = text.slice(end + 4);
+  const paras = body.split(/\n\s*\n/).map((p) => p.trim());
+  // The last paragraph may still be being written.
+  paras.pop();
+  return paras.filter((p) => p && !p.startsWith(">") && !p.startsWith("=")).length;
 }
 
 /** The importer's part of the CooklangPro settings tab. */

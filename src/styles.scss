@@ -669,6 +669,106 @@ button.cook-pill.is-clickable {
   min-width: 18em;
 }
 
+// Import dialog: the link check and the progress list.
+.recipe-importer-check {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-height: 1.5em;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+
+  &.is-ok {
+    align-items: flex-start;
+    padding: 0.6em;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    background: var(--background-secondary);
+  }
+  &.is-warning { color: var(--text-warning); }
+  &.is-error { color: var(--text-error); }
+}
+
+.recipe-importer-check-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-s);
+  flex: none;
+}
+
+.recipe-importer-check-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  min-width: 0;
+}
+
+.recipe-importer-check-name {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-medium);
+}
+
+.recipe-importer-check-how {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--text-success);
+}
+
+.recipe-importer-check-icon {
+  display: inline-flex;
+  flex: none;
+  --icon-size: var(--icon-s);
+}
+
+.is-busy > .recipe-importer-check-icon svg,
+.recipe-importer-step.is-busy .recipe-importer-check-icon svg {
+  animation: recipe-importer-spin 1s linear infinite;
+}
+
+@keyframes recipe-importer-spin {
+  to { transform: rotate(360deg); }
+}
+
+.recipe-importer-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+  padding: 0.5em 0;
+}
+
+.recipe-importer-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.6em;
+  align-items: center;
+
+  &.is-waiting { color: var(--text-faint); }
+  &.is-done .recipe-importer-check-icon { color: var(--text-success); }
+  &.is-failed .recipe-importer-check-icon { color: var(--text-error); }
+}
+
+.recipe-importer-step-detail,
+.recipe-importer-bar {
+  grid-column: 2;
+}
+
+.recipe-importer-step-detail {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+
+  &:empty { display: none; }
+  .is-failed > & { color: var(--text-error); }
+}
+
+.recipe-importer-bar {
+  width: 100%;
+  margin-top: 0.4em;
+}
+
 .recipe-importer-status {
   color: var(--text-muted);
   margin-top: 0.5em;
