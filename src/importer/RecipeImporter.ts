@@ -159,7 +159,7 @@ function pageText(html: string): string {
 
 /**
  * Recipe import, the recipe browser, favorites and ratings, and clickable tags.
- * Formerly the separate Recipe Importer plugin; now a component of CooklangPro.
+ * A component of CooklangPro.
  */
 export class RecipeImporter extends Component {
   readonly app: App;
@@ -470,7 +470,7 @@ export class RecipeImporter extends Component {
         // beside the recipe, never overwriting another recipe's photo, and linked from the recipe.
         await this.setRecipePhoto(file, img.arrayBuffer);
       } catch (e) {
-        console.warn("Recipe Importer: could not save the photo", e);
+        console.warn("CooklangPro: could not save the photo", e);
         new Notice("Recipe saved, but its photo could not be downloaded.");
       }
     }

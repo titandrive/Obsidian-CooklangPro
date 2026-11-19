@@ -1,6 +1,6 @@
 # CooklangPro
 
-> **This is a fork.** CooklangPro is a fork of [Cooklang Editor](https://github.com/cooklang/cooklang-obsidian) by death_au and the Cooklang team. Everything Cooklang Editor does still works here; CooklangPro adds fixes and features on top, and folds in the [Recipe Importer](https://github.com/titandrive/Obsidian-RecipeImporter) plugin. Cooklang Editor's own features and documentation are below.
+> **This is a fork.** CooklangPro is a fork of [Cooklang Editor](https://github.com/cooklang/cooklang-obsidian) by death_au and the Cooklang team. Everything Cooklang Editor does still works here; CooklangPro adds fixes and features on top. Cooklang Editor's own features and documentation are below.
 
 ## Fixes
 

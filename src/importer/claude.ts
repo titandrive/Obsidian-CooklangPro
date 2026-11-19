@@ -61,7 +61,7 @@ export async function checkKey(apiKey: string, model: string): Promise<{ ok: boo
 /** Friendlier wording for errors during an import. */
 export function describeError(e: unknown): string {
   if (e instanceof Anthropic.APIUserAbortError) return "Import cancelled.";
-  if (e instanceof Anthropic.AuthenticationError) return "Claude rejected the API key. Check it in the Recipe Importer settings.";
+  if (e instanceof Anthropic.AuthenticationError) return "Claude rejected the API key. Check it in CooklangPro's settings.";
   if (e instanceof Anthropic.RateLimitError) return "Claude is rate limiting requests. Wait a minute and try again.";
   if (e instanceof Anthropic.BadRequestError && /credit|balance|billing/i.test(e.message)) return "Your Anthropic account is out of credits. Add some under Billing on platform.claude.com.";
   if (e instanceof Anthropic.APIConnectionError) return "Couldn't reach the Anthropic API. Check your internet connection.";
