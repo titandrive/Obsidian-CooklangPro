@@ -5,6 +5,13 @@ import { RecipeData } from "./recipe";
 
 export const DEFAULT_MODEL = "claude-opus-5-5";
 
+/** Models offered in the import dialog: best results first, cheapest last. */
+export const CLAUDE_MODELS: [id: string, name: string][] = [
+  ["claude-opus-5-5", "Opus 5.5"],
+  ["claude-sonnet-5-5", "Sonnet 5.5"],
+  ["claude-haiku-5-5", "Haiku 5.5"],
+];
+
 const INSTRUCTIONS = `You convert a recipe into a Cooklang recipe note for Obsidian (read by the Cooklang Editor plugin, which uses the cooklang-rs parser). Reply with the complete file and nothing else: no code fences, no commentary.
 
 File layout:

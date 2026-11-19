@@ -1,7 +1,8 @@
 import { App, Component, Menu, Modal, Notice, Platform, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, requestUrl, setIcon } from "obsidian";
 import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
-import { DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
+import { CLAUDE_MODELS, DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
+import { parseRecipeText } from "./textRecipe";
 import { syncBrowserRows } from "./rating";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
 
@@ -19,6 +20,8 @@ export interface ImporterSettings {
   cardShow: { heart: boolean; stars: boolean; time: boolean; servings: boolean };
   /** Clicking a recipe in the recipe browser opens it in a new tab instead of the browser's tab. */
   browserNewTab: boolean;
+  /** Use Claude when there's an API key; switched in the import dialog. */
+  useClaude: boolean;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -31,6 +34,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   photosFolder: "Recipes/Photos",
   cardShow: { heart: true, stars: true, time: true, servings: true },
   browserNewTab: true,
+  useClaude: true,
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -400,10 +404,15 @@ export class RecipeImporter extends Component {
 
   /** Whether a fetched page can be imported, and how. */
   canImport(page: Page): boolean {
-    return page.usable || !!this.settings.apiKey;
+    return page.text !== undefined || page.usable || this.claudeOn();
   }
 
-  /** A pasted recipe, ready to convert like a fetched page (Claude only). */
+  /** Imports go through Claude: there's a key, and Claude is switched on in the import dialog. */
+  claudeOn(): boolean {
+    return !!this.settings.apiKey && this.settings.useClaude;
+  }
+
+  /** A pasted recipe, ready to convert like a fetched page. */
   textPage(text: string): Page {
     return { url: "", html: "", recipe: null, usable: false, text };
   }
@@ -411,7 +420,7 @@ export class RecipeImporter extends Component {
   /** Converts a fetched page into a Cooklang recipe note. */
   async convert(page: Page, onProgress?: (p: ClaudeProgress) => void, signal?: AbortSignal): Promise<Prepared> {
     const { url, recipe, usable, html } = page;
-    if (this.settings.apiKey) {
+    if (this.claudeOn()) {
       const markdown = await convertWithClaude({
         apiKey: this.settings.apiKey,
         model: this.settings.model,
@@ -424,11 +433,16 @@ export class RecipeImporter extends Component {
       });
       return { url, recipe, markdown, method: "claude" };
     }
+    if (page.text !== undefined) {
+      const parsed = parseRecipeText(page.text);
+      if (!parsed.ingredients.length && !parsed.groups.length) throw new Error("Couldn't find ingredients or steps in that text.");
+      return { url, recipe: parsed, markdown: toCooklang(parsed), method: "rules" };
+    }
     if (!usable) {
       throw new Error(
         recipe
-          ? "This page's recipe data has no ingredients or steps. Add a Claude API key in settings to import it from the page text."
-          : "No recipe data found on this page. Add a Claude API key in settings to import it from the page text.",
+          ? "This page's recipe data has no ingredients or steps. Turn on Claude to import it from the page text."
+          : "No recipe data found on this page. Turn on Claude to import it from the page text.",
       );
     }
     return { url, recipe, markdown: toCooklang(recipe!), method: "rules" };
@@ -653,12 +667,52 @@ class ImportModal extends Modal {
     tab("text", "text", "From text", () => this.showTextStep());
   }
 
-  /** Step 1, text tab: a recipe pasted from anywhere, converted by Claude. */
+  /**
+   * The Claude switch and model, beside the Import button. Without an API key it only says how to get Claude.
+   * `changed` re-checks the screen, since what can be imported depends on it.
+   */
+  private claudeControls(el: HTMLElement, changed: () => void) {
+    const plugin = this.plugin;
+    const box = el.createDiv({ cls: "recipe-importer-claude" });
+    if (!plugin.settings.apiKey) {
+      box.addClass("is-unavailable");
+      setIcon(box.createSpan({ cls: "recipe-importer-check-icon" }), "sparkles");
+      box.createSpan({ text: "Claude: add an API key in settings" });
+      return;
+    }
+    const toggle = box.createEl("button", { cls: "recipe-importer-claude-toggle", attr: { type: "button" } });
+    setIcon(toggle.createSpan({ cls: "recipe-importer-check-icon" }), "sparkles");
+    const label = toggle.createSpan();
+    const model = box.createEl("select", { cls: "dropdown recipe-importer-claude-model", attr: { "aria-label": "Claude model" } });
+    for (const [id, name] of CLAUDE_MODELS) model.createEl("option", { value: id, text: name });
+    if (![...model.options].some((o) => o.value === plugin.settings.model)) model.createEl("option", { value: plugin.settings.model, text: plugin.settings.model });
+    model.value = plugin.settings.model;
+    const render = () => {
+      const on = plugin.settings.useClaude;
+      toggle.toggleClass("is-on", on);
+      toggle.setAttr("aria-pressed", String(on));
+      toggle.setAttr("aria-label", on ? "Claude is on. Click to use the built-in converter." : "Claude is off. Click to use Claude.");
+      label.setText(on ? "Claude" : "Claude off");
+      model.toggle(on);
+    };
+    toggle.addEventListener("click", async () => {
+      plugin.settings.useClaude = !plugin.settings.useClaude;
+      render();
+      await plugin.saveSettings();
+      changed();
+    });
+    model.addEventListener("change", async () => {
+      plugin.settings.model = model.value;
+      await plugin.saveSettings();
+    });
+    render();
+  }
+
+  /** Step 1, text tab: a recipe pasted from anywhere, read by Claude or the built-in reader. */
   private showTextStep() {
     const { contentEl } = this;
     contentEl.empty();
     this.tabs("text");
-    const claude = !!this.plugin.settings.apiKey;
     const area = contentEl.createEl("textarea", {
       cls: "recipe-importer-text",
       attr: { placeholder: "Paste a recipe: its name, ingredients and steps, in any layout.", spellcheck: "false" },
@@ -666,10 +720,11 @@ class ImportModal extends Modal {
     area.value = this.pastedText;
     const check = contentEl.createDiv({ cls: "recipe-importer-check" });
     let button!: import("obsidian").ButtonComponent;
-    new Setting(contentEl).addButton((b) => {
+    const actions = new Setting(contentEl).addButton((b) => {
       button = b;
       b.setButtonText("Import").setCta().onClick(() => go());
     });
+    this.claudeControls(actions.infoEl, () => update());
     const row = (icon: string, text: string, cls: string) => {
       check.empty();
       check.className = `recipe-importer-check ${cls}`;
@@ -680,14 +735,22 @@ class ImportModal extends Modal {
       this.pastedText = area.value;
       const text = area.value.trim();
       const lines = text ? text.split(/\n/).filter((l) => l.trim()).length : 0;
-      if (!claude) row("circle-x", "Importing from text needs Claude. Add an Anthropic API key in settings.", "is-error");
-      else if (!text) { check.empty(); check.className = "recipe-importer-check"; }
+      if (!text) { check.empty(); check.className = "recipe-importer-check"; }
       else if (text.length < 40) row("triangle-alert", "That's very short for a recipe.", "is-warning");
-      else row("circle-check", `${plural(lines, "line")} pasted. Claude will turn it into a recipe.`, "is-ok-inline");
-      button.setDisabled(!claude || text.length < 40);
+      else if (this.plugin.claudeOn()) row("circle-check", `${plural(lines, "line")} pasted. Claude will turn it into a recipe.`, "is-ok-inline");
+      else {
+        // Preview what the built-in reader finds, so a bad read shows before importing.
+        const r = parseRecipeText(text);
+        const steps = r.groups.reduce((n, g) => n + g.steps.length, 0);
+        if (!r.ingredients.length && !steps) row("circle-x", "Couldn't find ingredients or steps. Turn on Claude for messy text.", "is-error");
+        else row(r.ingredients.length && steps ? "circle-check" : "triangle-alert",
+          `Found "${r.name}": ${plural(r.ingredients.length, "ingredient")}, ${plural(steps, "step")}. Check it after saving.`,
+          r.ingredients.length && steps ? "is-ok-inline" : "is-warning");
+      }
+      button.setDisabled(text.length < 40);
     };
     const go = () => {
-      if (claude && area.value.trim().length >= 40) this.showProgressStep(this.plugin.textPage(area.value.trim()));
+      if (area.value.trim().length >= 40) this.showProgressStep(this.plugin.textPage(area.value.trim()));
     };
     area.addEventListener("input", update);
     // Plain Enter is a new line here; Ctrl/Cmd+Enter imports (see onOpen).
@@ -711,9 +774,15 @@ class ImportModal extends Modal {
     });
     const check = contentEl.createDiv({ cls: "recipe-importer-check" });
     let button!: import("obsidian").ButtonComponent;
-    new Setting(contentEl).addButton((b) => {
+    const actions = new Setting(contentEl).addButton((b) => {
       button = b;
       b.setButtonText("Import").setCta().setDisabled(true).onClick(() => void go());
+    });
+    this.claudeControls(actions.infoEl, () => {
+      if (this.page && this.page.url === url.trim()) {
+        showPage(this.page);
+        button.setDisabled(!this.plugin.canImport(this.page));
+      }
     });
 
     const row = (icon: string, text: string, cls = "") => {
@@ -726,7 +795,7 @@ class ImportModal extends Modal {
     const showPage = (page: Page) => {
       check.empty();
       const r = page.recipe;
-      const key = !!this.plugin.settings.apiKey;
+      const key = this.plugin.claudeOn();
       if (page.usable && r) {
         check.className = "recipe-importer-check is-ok";
         if (r.imageUrl) check.createEl("img", { cls: "recipe-importer-check-img", attr: { src: new URL(r.imageUrl, page.url).href, alt: "" } });
@@ -749,8 +818,8 @@ class ImportModal extends Modal {
           : "No recipe data on this page. Claude will read the page text instead.", "is-warning");
       } else {
         row("circle-x", r
-          ? "The page's recipe data has no ingredients or steps. Add a Claude API key in settings to import it from the page text."
-          : "No recipe data on this page. Add a Claude API key in settings to import it from the page text.", "is-error");
+          ? "The page's recipe data has no ingredients or steps. Turn on Claude to import it from the page text."
+          : "No recipe data on this page. Turn on Claude to import it from the page text.", "is-error");
       }
     };
 
@@ -806,7 +875,7 @@ class ImportModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     this.resetKeys();
-    const claude = !!this.plugin.settings.apiKey;
+    const claude = this.plugin.claudeOn();
     const list = contentEl.createDiv({ cls: "recipe-importer-progress" });
     const step = (text: string) => {
       const el = list.createDiv({ cls: "recipe-importer-step" });
@@ -1081,7 +1150,7 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
     const keySetting = new Setting(containerEl)
       .setName("Anthropic API key")
       .setDesc(
-        "Optional. With a key, Claude converts each recipe (better ingredient marking, and pages without recipe data work). Without one, a built-in converter is used. The key is stored in CooklangPro's data.json, which syncs with your vault.",
+        "Optional. With a key, Claude can convert recipes (better ingredient marking, and pages without recipe data or messy pasted text work). Switch Claude on or off and pick the model in the import dialog. Without a key, a built-in converter is used. The key is stored in CooklangPro's data.json, which syncs with your vault.",
       );
     const keyStatus = containerEl.createDiv({ cls: "recipe-importer-key-status" });
     keySetting.settingEl.after(keyStatus);
@@ -1113,19 +1182,4 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
       })
       .addButton((b) => b.setButtonText("Check key").onClick(() => void runCheck()));
     void runCheck();
-    new Setting(containerEl)
-      .setName("Model")
-      .setDesc("Claude Opus 5.5 gives the best results (about 5 cents per recipe). Claude Haiku 5.5 is much cheaper.")
-      .addDropdown((d) =>
-        d
-          .addOption("claude-opus-5-5", "Claude Opus 5.5")
-          .addOption("claude-sonnet-5-5", "Claude Sonnet 5.5")
-          .addOption("claude-haiku-5-5", "Claude Haiku 5.5")
-          .setValue(plugin.settings.model)
-          .onChange(async (v) => {
-            plugin.settings.model = v;
-            await plugin.saveSettings();
-            await runCheck();
-          }),
-      );
 }

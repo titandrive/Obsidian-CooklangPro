@@ -706,6 +706,45 @@ button.cook-pill.is-clickable {
   margin-bottom: 0.5em;
 }
 
+.recipe-importer-claude {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: var(--font-ui-small);
+
+  &.is-unavailable {
+    color: var(--text-faint);
+    gap: 0.35em;
+  }
+}
+
+.recipe-importer-claude button.recipe-importer-claude-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  background-color: transparent;
+  box-shadow: none;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l);
+  padding: 0.2em 0.7em;
+  cursor: pointer;
+
+  &.is-on {
+    // Claude's orange.
+    color: #d97757;
+    border-color: #d97757;
+  }
+}
+
+.recipe-importer-claude-model {
+  font-size: var(--font-ui-small);
+  height: auto;
+  padding-top: 0.15em;
+  padding-bottom: 0.15em;
+}
+
 .recipe-importer-keys {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);

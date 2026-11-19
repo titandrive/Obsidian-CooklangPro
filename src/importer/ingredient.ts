@@ -27,7 +27,7 @@ const UNITS: Record<string, string> = {
   liter: "l", liters: "l", litre: "l", litres: "l", l: "l",
   pint: "pint", pints: "pint", quart: "quart", quarts: "quart", gallon: "gallon", gallons: "gallon",
   clove: "cloves", cloves: "cloves",
-  pinch: "pinch", pinches: "pinch", dash: "dash", dashes: "dash",
+  pinch: "pinch", pinches: "pinch", dash: "dash", dashes: "dash", squeeze: "squeeze", squeezes: "squeeze", splash: "splash",
   can: "can", cans: "can", jar: "jar", jars: "jar", package: "package", packages: "package", pkg: "package",
   packet: "packet", packets: "packet", bag: "bag", bags: "bag", box: "box", boxes: "box",
   stick: "stick", sticks: "stick", slice: "slices", slices: "slices", piece: "pieces", pieces: "pieces",
