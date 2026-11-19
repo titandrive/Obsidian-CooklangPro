@@ -81,7 +81,8 @@ export default {
   },
   output: {
     file: 'main.js',
-    sourcemap: 'inline',
+    // No source map in release builds: it more than doubles main.js, and Obsidian Sync skips files over 5 MB.
+    sourcemap: isProd ? false : 'inline',
     sourcemapExcludeSources: isProd,
     format: 'cjs',
     exports: 'default',
