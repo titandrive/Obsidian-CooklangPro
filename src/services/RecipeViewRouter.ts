@@ -27,6 +27,18 @@ export class RecipeViewRouter<L extends RecipeLeaf> {
         this.automatic.delete(leaf);
     }
 
+    /** True when the user chose to edit this file as text in this leaf. */
+    isNative(leaf: L, path: string): boolean {
+        return this.native.get(leaf) === path;
+    }
+
+    /** A recipe that was opened straight into the recipe view instead of being switched later. */
+    openedAutomatically(leaf: L, path: string): void {
+        this.native.delete(leaf);
+        this.automatic.set(leaf, path);
+        this.seen.set(leaf, path);
+    }
+
     openAsRecipe(leaf: L): void {
         this.native.delete(leaf);
         this.automatic.delete(leaf);

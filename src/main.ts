@@ -10,6 +10,7 @@ import {
   MarkdownPostProcessorContext,
   Notice,
   TextFileView,
+  type ViewState,
   parseYaml,
   stringifyYaml,
 } from 'obsidian';
@@ -49,6 +50,8 @@ export default class CookPlugin extends Plugin {
   private sessions!: RecipeSessions<WorkspaceLeaf, RecipeSession>;
   private routeTimeout: number | null = null;
   private routingReady = false;
+  /** Set while the router itself switches a tab, so openRecipesDirectly leaves its choice alone. */
+  private routerSwitching = 0;
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
@@ -174,14 +177,20 @@ export default class CookPlugin extends Plugin {
         if (leaf.view instanceof TextFileView) await leaf.view.save();
         // Saving may yield while the user navigates to another note.
         if (!isCurrent()) return;
-        await this.sessions.preserve(leaf, () => leaf.setViewState({ type,
-          state: { file: path, mode: type === 'cook' ? 'preview' : 'source', source: true, sync: true } }));
+        this.routerSwitching++;
+        try {
+          await this.sessions.preserve(leaf, () => leaf.setViewState({ type,
+            state: { file: path, mode: type === 'cook' ? 'preview' : 'source', source: true, sync: true } }));
+        } finally {
+          this.routerSwitching--;
+        }
         this.routeLeaves();
       },
       error => this.reportError('Could not open recipe', error),
       () => this.settings.defaultView,
     );
     this.register(() => this.router.dispose());
+    this.openRecipesDirectly();
     const routeLeaves = this.routeLeaves;
     this.registerEvent(this.app.workspace.on('active-leaf-change', routeLeaves));
     this.registerEvent(this.app.workspace.on('file-open', routeLeaves));
@@ -370,6 +379,32 @@ export default class CookPlugin extends Plugin {
     } finally {
       this.routeLeaves();
     }
+  }
+
+  /**
+   * When a recipe note is opened as a text note (from the file explorer, a link, search...), open it in the
+   * recipe view straight away. Otherwise the text shows for a moment before the router switches the tab.
+   * Only applies when the default view is the recipe view, and not when the user chose to edit the recipe as text.
+   */
+  private openRecipesDirectly(): void {
+    const proto = WorkspaceLeaf.prototype as unknown as { setViewState: WorkspaceLeaf['setViewState'] };
+    const original = proto.setViewState;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const plugin = this;
+    proto.setViewState = function (this: WorkspaceLeaf, viewState: ViewState, eState?: unknown) {
+      const path = viewState?.state?.file;
+      if (viewState?.type === 'markdown' && typeof path === 'string' && path.endsWith('.md')
+          && plugin.routingReady && !plugin.disposed && plugin.routerSwitching === 0 && plugin.settings.defaultView === 'preview'
+          && !plugin.router.isNative(this, path)) {
+        const file = plugin.app.vault.getAbstractFileByPath(path);
+        if (file instanceof TFile && isRecipeFile(path, plugin.app.metadataCache.getFileCache(file)?.frontmatter)) {
+          plugin.router.openedAutomatically(this, path);
+          viewState = { ...viewState, type: 'cook', state: { ...viewState.state, mode: 'preview' } };
+        }
+      }
+      return original.call(this, viewState, eState);
+    };
+    this.register(() => { proto.setViewState = original; });
   }
 
   private editAsMarkdown = async (leaf: WorkspaceLeaf): Promise<void> => {
