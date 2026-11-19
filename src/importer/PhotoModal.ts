@@ -193,7 +193,8 @@ export class PhotoModal extends Modal {
       return false;
     });
 
-    window.setTimeout(() => link.focus(), 0);
+    // On a phone, focusing would open the keyboard over the dialog.
+    if (!Platform.isMobile) window.setTimeout(() => link.focus(), 0);
   }
 
   onClose() {

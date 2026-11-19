@@ -724,10 +724,22 @@ class ImportModal extends Modal {
     area.value = this.pastedText;
     const check = contentEl.createDiv({ cls: "recipe-importer-check" });
     let button!: import("obsidian").ButtonComponent;
-    const actions = new Setting(contentEl).addButton((b) => {
-      button = b;
-      b.setButtonText("Import").setCta().onClick(() => go());
-    });
+    const actions = new Setting(contentEl)
+      .addExtraButton((b) =>
+        b.setIcon("clipboard-paste").setTooltip("Paste recipe").onClick(async () => {
+          const text = await readClipboard();
+          if (!text.trim()) {
+            new Notice("The clipboard is empty.");
+            return;
+          }
+          area.value = text;
+          update();
+        }),
+      )
+      .addButton((b) => {
+        button = b;
+        b.setButtonText("Import").setCta().onClick(() => go());
+      });
     this.claudeControls(actions.infoEl, () => update());
     const row = (icon: string, text: string, cls: string) => {
       check.empty();
@@ -761,7 +773,7 @@ class ImportModal extends Modal {
     this.submit = go;
     this.keyHints("Mod+Enter import", "Mod+1 / Mod+2 switch tab");
     update();
-    window.setTimeout(() => area.focus(), 0);
+    if (!Platform.isMobile) window.setTimeout(() => area.focus(), 0);
   }
 
   private showUrlStep(initialUrl = "") {
@@ -770,12 +782,26 @@ class ImportModal extends Modal {
     this.tabs("link");
     let url = initialUrl;
     let input!: HTMLInputElement;
-    new Setting(contentEl).setName("Recipe link").addText((t) => {
+    const linkSetting = new Setting(contentEl).setName("Recipe link").addText((t) => {
       t.setPlaceholder("https://...").setValue(url);
       input = t.inputEl;
       input.addClass("recipe-importer-url");
-      window.setTimeout(() => input.focus(), 0);
+      // On a phone, focusing would open the keyboard over the dialog; pasting doesn't need it.
+      if (!Platform.isMobile) window.setTimeout(() => input.focus(), 0);
     });
+    const useLink = (link: string) => {
+      input.value = link;
+      url = link;
+      window.clearTimeout(timer);
+      void runCheck();
+    };
+    linkSetting.addExtraButton((b) =>
+      b.setIcon("clipboard-paste").setTooltip("Paste link").onClick(async () => {
+        const link = await clipboardLink();
+        if (link) useLink(link);
+        else new Notice("There's no link in the clipboard.");
+      }),
+    );
     const check = contentEl.createDiv({ cls: "recipe-importer-check" });
     let button!: import("obsidian").ButtonComponent;
     const actions = new Setting(contentEl).addButton((b) => {
@@ -872,6 +898,10 @@ class ImportModal extends Modal {
     this.submit = () => void go();
     this.keyHints("Enter import", "Mod+1 / Mod+2 switch tab");
     if (url) void runCheck();
+    // A link already in the clipboard is filled in straight away.
+    else void clipboardLink().then((link) => {
+      if (link && !input.value.trim() && this.contentEl.contains(input)) useLink(link);
+    });
   }
 
   /** Step 2: converting, with progress. */
@@ -979,7 +1009,7 @@ class ImportModal extends Modal {
     new Setting(contentEl).setName("Name").addText((t) => {
       t.setValue(title).onChange((v) => (title = v));
       t.inputEl.addClass("recipe-importer-url");
-      window.setTimeout(() => {
+      if (!Platform.isMobile) window.setTimeout(() => {
         t.inputEl.focus();
         t.inputEl.select();
       }, 0);
@@ -1057,6 +1087,21 @@ function noteAsRecipe(markdown: string, title: string): RecipeData {
     name: title, description: "", url: "", imageUrl: null, servings: null, yieldText: null, totalMinutes: null,
     ingredients: [], groups: [], categories: [], cuisines: [], keywords: tags, diets: [], raw: null,
   };
+}
+
+/** The clipboard's text, or "" when it can't be read (no permission, or not text). */
+async function readClipboard(): Promise<string> {
+  try {
+    return (await navigator.clipboard.readText()) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** A web link in the clipboard, if that's all the clipboard holds. */
+async function clipboardLink(): Promise<string | null> {
+  const text = (await readClipboard()).trim();
+  return /^https?:\/\/\S+\.\S+$/i.test(text) ? text : null;
 }
 
 function plural(n: number, word: string): string {
