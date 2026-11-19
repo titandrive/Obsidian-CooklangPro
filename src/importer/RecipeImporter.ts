@@ -596,7 +596,7 @@ class ImportModal extends Modal {
 
   onOpen() {
     this.setTitle("Import recipe");
-    this.modalEl.addClass("recipe-importer-modal");
+    this.modalEl.addClass("recipe-importer-modal", "cooklang-themed-select");
     // Keyboard: Ctrl/Cmd+Enter does the screen's main action anywhere in the dialog, Enter does it from a
     // one-line field, Ctrl/Cmd+1 and 2 switch tabs, Alt+Left goes back. Escape closes (and cancels).
     this.scope.register(["Mod"], "Enter", () => {

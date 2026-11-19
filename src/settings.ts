@@ -52,6 +52,8 @@ export class CookSettingsTab extends PluginSettingTab {
     let { containerEl } = this;
 
     containerEl.empty();
+    // Themed dropdown lists (see .cooklang-themed-select in the styles).
+    containerEl.addClass('cooklang-themed-select');
 
     new Setting(containerEl)
       .setName('New recipe format')

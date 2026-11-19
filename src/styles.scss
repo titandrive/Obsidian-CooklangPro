@@ -740,9 +740,6 @@ button.cook-pill.is-clickable {
 
 .recipe-importer-claude-model {
   font-size: var(--font-ui-small);
-  height: auto;
-  padding-top: 0.15em;
-  padding-bottom: 0.15em;
 }
 
 .recipe-importer-keys {
@@ -1150,5 +1147,58 @@ button.cook-pill.is-clickable {
     margin-top: var(--size-4-2, 8px);
     color: var(--text-error);
     font-size: var(--font-ui-small);
+  }
+}
+
+// Dropdowns in CooklangPro's dialog and settings tab: on Linux, Obsidian's dropdown lists are drawn by the
+// system and ignore the theme. A customizable select draws the open list in the page, styled like an
+// Obsidian menu. The closed dropdown keeps Obsidian's own look.
+.cooklang-themed-select select.dropdown {
+  appearance: base-select;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+
+  &::picker-icon {
+    display: none; // Obsidian already draws the arrow
+  }
+
+  &::picker(select) {
+    appearance: base-select;
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border-hover);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-s);
+    padding: var(--size-2-2);
+    margin-top: var(--size-2-1);
+    color: var(--text-normal);
+  }
+
+  option {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-3);
+    padding: var(--size-2-2) var(--size-4-2);
+    border-radius: var(--radius-s);
+    font-size: var(--font-ui-small);
+    color: var(--text-normal);
+    background-color: transparent;
+    cursor: var(--cursor);
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--background-modifier-hover);
+      outline: none;
+    }
+
+    &:checked {
+      color: var(--text-accent);
+    }
+
+    &::checkmark {
+      order: 1;
+      margin-left: auto;
+      color: var(--text-accent);
+    }
   }
 }
