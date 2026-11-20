@@ -1655,3 +1655,15 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
     color: var(--interactive-accent);
   }
 }
+
+// The drawer button shows no highlight behind its icon when tapped or open (phones keep a tapped button
+// "hovered", which left a circle around it); the icon's colour says whether the drawer is open.
+.cooklang-recipe-browser .cooklang-drawer-button .text-icon-button {
+  &,
+  &:hover,
+  &:active,
+  &.has-active-menu {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
