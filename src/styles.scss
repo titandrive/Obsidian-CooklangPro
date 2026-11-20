@@ -1395,7 +1395,7 @@ button.cook-pill.is-clickable {
     height: 28px;
     width: 100%;
     padding-right: 4.5em;
-    border-radius: 999px;
+    border-radius: var(--radius-m);
     border: 1px solid var(--background-modifier-border);
     background-color: var(--background-modifier-form-field);
     box-shadow: none;
