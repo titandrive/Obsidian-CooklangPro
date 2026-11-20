@@ -1375,3 +1375,14 @@ button.cook-pill.is-clickable {
     pointer-events: none;
   }
 }
+
+// An always-open search box on the recipe browser's card views (Bases hides it behind its Search button).
+.cooklang-recipe-browser.cooklang-search-always {
+  .bases-search-row {
+    display: flex !important;
+  }
+
+  .bases-toolbar-search {
+    display: none;
+  }
+}

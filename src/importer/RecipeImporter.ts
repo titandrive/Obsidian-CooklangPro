@@ -25,6 +25,8 @@ export interface ImporterSettings {
   useClaude: boolean;
   /** The By tag view was added to an existing recipe browser (done once, so deleting it sticks). */
   tagViewAdded: boolean;
+  /** An always-open search box on the browser's card views (Options menu); off: Bases' Search button. */
+  searchBar: boolean;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -39,6 +41,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   browserNewTab: true,
   useClaude: true,
   tagViewAdded: false,
+  searchBar: true,
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -288,6 +291,30 @@ export class RecipeImporter extends Component {
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
     this.renderFolderBadges(view, show.folder);
+    // Bases' own search row stays open on card views, so searching is one tap; the table keeps the Search button.
+    const cards = view?.controller?.view?.type !== "table";
+    el.toggleClass("cooklang-search-always", cards && this.settings.searchBar);
+    const search = el.querySelector<HTMLInputElement>(".bases-search-row input");
+    if (search && !search.dataset.cooklangSearch) {
+      // Bases only listens while its own search is open; pass what's typed (and cleared) straight to the view.
+      search.dataset.cooklangSearch = "1";
+      search.placeholder = "Search recipes...";
+      const apply = () => view?.controller?.updateSearchQuery?.(search.value.trim());
+      this.registerDomEvent(search, "input", apply);
+      search.addEventListener("search", apply);
+      this.registerDomEvent(search, "keydown", (e: KeyboardEvent) => {
+        if (e.key === "Escape" && search.value) {
+          e.preventDefault();
+          e.stopPropagation();
+          search.value = "";
+          apply();
+        }
+      });
+      search.parentElement?.querySelector(".search-input-clear-button")?.addEventListener("click", () => {
+        search.value = "";
+        apply();
+      });
+    }
     this.addShowButton(view);
     this.renderCardDetails(view);
   }
@@ -687,6 +714,8 @@ export class RecipeImporter extends Component {
     toggle("Time", show.time, () => { show.time = !show.time; setDetails(); });
     toggle("Servings", show.servings, () => { show.servings = !show.servings; setDetails(); });
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
+    menu.addSeparator();
+    toggle("Search bar", this.settings.searchBar, () => (this.settings.searchBar = !this.settings.searchBar));
     menu.addSeparator();
     toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
     menu.showAtMouseEvent(evt);
