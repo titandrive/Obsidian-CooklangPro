@@ -227,6 +227,13 @@ export class RecipeImporter extends Component {
         filter: (label, files) => void this.showResults(controller, label, files),
       }),
     });
+    // An Insights tab that was already open keeps the view object from the previous version of the plugin, so a
+    // plugin update wouldn't reach it. Rebuild those tabs so they run the current code.
+    this.app.workspace.onLayoutReady(() => {
+      for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
+        if ((leaf.view as any)?.controller?.view?.type === INSIGHTS_VIEW) void (leaf as any).rebuildView?.();
+      }
+    });
     // Keep the parsed browser base current, for the folder picker.
     this.registerEvent(this.app.vault.on("modify", (f) => {
       if (f.path === this.browserPath()) void this.loadBrowserBase().then(() => this.refreshBrowsers());
