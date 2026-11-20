@@ -304,7 +304,11 @@ export class RecipeImporter extends Component {
       window.requestAnimationFrame(() => view?.controller?.view?.onResize?.());
     }
     syncBrowserRows(this.app, view, (f) => this.isRecipe(f), isBrowser);
-    if (!isBrowser || !el) return;
+    if (!el) return;
+    if (!isBrowser) {
+      this.clearBrowserExtras(el);
+      return;
+    }
     this.openInNewTab(view);
     this.browserHaptics(view);
     // The browser's base, parsed, for the folder and tag views (the By tag view is added once if missing).
@@ -386,6 +390,24 @@ export class RecipeImporter extends Component {
    * Moves Bases' search box into the toolbar (before Options) while the always-on search is wanted, and back
    * into its own row otherwise, where Bases' Search button opens it as usual.
    */
+  /**
+   * Another base opened in the browser's tab reuses its toolbar: take off everything CooklangPro added (Options,
+   * Import, the drawer button, the sidebar, the moved search box) so that base looks as it normally does.
+   */
+  private clearBrowserExtras(el: HTMLElement) {
+    if (!el.querySelector(".cooklang-show-menu, .cooklang-import-button, .cooklang-search-item, .cooklang-drawer-button, .cooklang-sidebar")
+      && !el.hasClass("cooklang-search-always")) return;
+    this.placeSearchBox(el, false);
+    el.querySelectorAll(".cooklang-show-menu, .cooklang-import-button, .cooklang-drawer-button, .cooklang-drawer-shade, .cooklang-sidebar")
+      .forEach((n) => n.remove());
+    el.removeClass("cooklang-search-always", "cooklang-has-sidebar", "cooklang-drawer-open", "cooklang-switching",
+      "cooklang-hide-card-heart", "cooklang-hide-card-stars");
+    const search = el.querySelector<HTMLInputElement>(".bases-search-row input");
+    if (search) {
+      search.placeholder = "Find...";
+    }
+  }
+
   private placeSearchBox(el: HTMLElement, inToolbar: boolean) {
     const toolbar = el.querySelector<HTMLElement>(".bases-toolbar");
     const row = el.querySelector<HTMLElement>(".bases-search-row");
