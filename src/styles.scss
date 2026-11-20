@@ -1382,6 +1382,62 @@ button.cook-pill.is-clickable {
     display: flex !important;
   }
 
+  // The clear (x) button inside the box, at its right end, with the result count just before it.
+  .bases-search-row .search-input-container {
+    position: relative;
+  }
+
+  .bases-search-row .search-input-clear-button {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+  }
+
+  .bases-search-row .document-search-count {
+    right: 34px;
+  }
+
+  .bases-search-row input {
+    padding-right: 7.5em;
+  }
+
+  // A centred, rounded field rather than a full-width bar.
+  .bases-search-row {
+    justify-content: center;
+    padding: var(--size-4-2) var(--size-4-3);
+  }
+
+  .bases-search-row .search-input-container {
+    width: 100%;
+    max-width: 460px;
+  }
+
+  .bases-search-row input {
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-modifier-form-field);
+    box-shadow: none;
+    font-size: var(--font-ui-small);
+
+    &:focus,
+    &:focus-visible {
+      border-color: var(--interactive-accent);
+      box-shadow: 0 0 0 2px hsla(var(--interactive-accent-hsl), 0.2);
+    }
+  }
+
+  .bases-search-row .search-input-container::before {
+    left: 12px;
+  }
+
+  .bases-search-row .document-search-count {
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+  }
+
   .bases-toolbar-search {
     display: none;
   }
