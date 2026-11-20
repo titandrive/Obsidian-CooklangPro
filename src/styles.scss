@@ -1733,3 +1733,12 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   opacity: 0.3;
   pointer-events: none;
 }
+
+// Tighter view tabs (the selected one's box crowded its neighbours), and a little room before the search box.
+.cooklang-recipe-browser .dj-base-tab {
+  padding: 3px 4px;
+}
+
+.cooklang-recipe-browser .bases-toolbar .cooklang-search-item {
+  margin-left: var(--size-4-2);
+}
