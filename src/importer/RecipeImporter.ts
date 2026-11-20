@@ -711,7 +711,7 @@ export class RecipeImporter extends Component {
     const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
     if (!toolbar || toolbar.querySelector(".cooklang-show-menu")) return;
     const item = createDiv({ cls: "bases-toolbar-item cooklang-show-menu" });
-    const button = item.createDiv({ cls: "text-icon-button", attr: { tabindex: "0", "aria-label": "Recipe browser options" } });
+    const button = item.createDiv({ cls: "text-icon-button tappable", attr: { tabindex: "0", role: "button", "aria-label": "Recipe browser options" } });
     setIcon(button.createSpan({ cls: "text-button-icon" }), "settings");
     button.createSpan({ cls: "text-button-label", text: "Options" });
     button.addEventListener("click", (evt) => this.openShowMenu(view, evt));
@@ -723,7 +723,7 @@ export class RecipeImporter extends Component {
     const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
     if (!toolbar || toolbar.querySelector(".cooklang-import-button")) return;
     const item = createDiv({ cls: "bases-toolbar-item cooklang-import-button" });
-    const button = item.createDiv({ cls: "text-icon-button", attr: { tabindex: "0", role: "button", "aria-label": "Import a recipe" } });
+    const button = item.createDiv({ cls: "text-icon-button tappable", attr: { tabindex: "0", role: "button", "aria-label": "Import a recipe" } });
     setIcon(button.createSpan({ cls: "text-button-icon" }), "import");
     button.createSpan({ cls: "text-button-label", text: "Import" });
     const open = () => new ImportModal(this.app, this).open();
