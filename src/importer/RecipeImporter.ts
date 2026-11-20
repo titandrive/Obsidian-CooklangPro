@@ -356,13 +356,14 @@ export class RecipeImporter extends Component {
     }
     const search = el.querySelector<HTMLInputElement>(".bases-search-row input, .cooklang-search-item input");
     if (search && search.placeholder !== "Search recipes") search.placeholder = "Search recipes";
-    if (search && !search.dataset.cooklangSearch) {
+    // Tracked per plugin load (not a mark on the element), so a reloaded plugin wires up boxes in tabs already open.
+    if (search && !this.searchWired.has(search)) {
       // Bases only listens while its own search is open; pass what's typed (and cleared) straight to the view.
-      search.dataset.cooklangSearch = "1";
+      this.searchWired.add(search);
       search.placeholder = "Search recipes";
       const apply = () => view?.controller?.updateSearchQuery?.(search.value.trim());
       this.registerDomEvent(search, "input", apply);
-      search.addEventListener("search", apply);
+      this.registerDomEvent(search, "search" as any, apply);
       this.registerDomEvent(search, "keydown", (e: KeyboardEvent) => {
         // Backspace in an empty box removes the Insights filter chip, like deleting a tag.
         if (e.key === "Backspace" && !search.value && search.selectionStart === 0) {
@@ -380,7 +381,8 @@ export class RecipeImporter extends Component {
           apply();
         }
       });
-      search.parentElement?.querySelector(".search-input-clear-button")?.addEventListener("click", () => {
+      const clearButton = search.parentElement?.querySelector<HTMLElement>(".search-input-clear-button");
+      if (clearButton) this.registerDomEvent(clearButton, "click", () => {
         search.value = "";
         apply();
         // The x clears the filter chip too.
@@ -464,6 +466,7 @@ export class RecipeImporter extends Component {
   }
 
   private searchFocused = new WeakSet<object>();
+  private searchWired = new WeakSet<HTMLElement>();
   /** Hides the browser's cards until the view named `target` is showing and has stopped redrawing (at most 1s). */
   private hideUntilDrawn(view: any, target: string) {
     const root: HTMLElement | undefined = view?.containerEl;
