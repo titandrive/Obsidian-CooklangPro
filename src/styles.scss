@@ -1795,3 +1795,8 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   --icon-size: 12px;
   --icon-stroke: 2.5px;
 }
+
+// Settings: each diet's tags box is wider than its name box.
+.cooklang-diet-row .cooklang-diet-tags {
+  width: 18em;
+}

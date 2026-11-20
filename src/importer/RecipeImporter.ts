@@ -6,6 +6,7 @@ import { minutesIn, parseRecipeText } from "./textRecipe";
 import { hapticTap, TAPPABLE } from "../utils/haptics";
 import { INSIGHTS_VIEW, RecipeInsightsView } from "./insights";
 import { syncBrowserRows } from "./rating";
+import { type Diet, dietTags, fitsDiet } from "./diets";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
 
 export interface ImporterSettings {
@@ -32,7 +33,11 @@ export interface ImporterSettings {
   insightsViewAdded: boolean;
   /** What the All recipes view is narrowed to after a click in Insights ("garlic", "★★★"), for its toolbar chip. */
   resultsLabel: string;
+  /** Diets for the Filter menu and Insights: a recipe fits a diet when it has any of the diet's tags. */
+  diets: Diet[];
 }
+
+
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   recipesFolder: "Recipes",
@@ -49,6 +54,10 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   tagViewUngrouped: false,
   insightsViewAdded: false,
   resultsLabel: "",
+  diets: [
+    { name: "Vegan", tags: ["vegan"] },
+    { name: "Vegetarian", tags: ["vegetarian", "vegan"] },
+  ],
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -198,6 +207,8 @@ export class RecipeImporter extends Component {
     // Fill in defaults for settings saved by older versions.
     this.settings = Object.assign({}, DEFAULT_IMPORTER_SETTINGS, host.settings.importer ?? {});
     this.settings.cardShow = Object.assign({}, DEFAULT_IMPORTER_SETTINGS.cardShow, this.settings.cardShow ?? {});
+    this.settings.diets = (Array.isArray(this.settings.diets) ? this.settings.diets : DEFAULT_IMPORTER_SETTINGS.diets)
+      .map((d) => ({ name: String(d?.name ?? ""), tags: Array.isArray(d?.tags) ? d.tags.map(String) : [] }));
     host.settings.importer = this.settings;
   }
 
@@ -221,6 +232,7 @@ export class RecipeImporter extends Component {
           if (!name) return;
           void this.applySelection({ controller }, name, kind, this.pickerOptions(kind), new Set([value]));
         },
+        diets: () => this.settings.diets.filter((d) => d.name.trim() && d.tags.length),
         view: (name) => {
           if ((controller?.getQueryViewNames?.() ?? []).includes(name)) controller.selectView(name);
         },
@@ -1065,10 +1077,12 @@ export class RecipeImporter extends Component {
     add("Under 1 hour", "clock", (r) => r.minutes !== null && r.minutes > 0 && r.minutes < 60);
     add("1 hour or more", "clock", (r) => r.minutes !== null && r.minutes >= 60);
     menu.addSeparator();
-    header("Diet");
-    add("Vegan", "leaf", (r) => r.tags.includes("vegan"));
-    add("Vegetarian", "carrot", (r) => r.tags.includes("vegan") || r.tags.includes("vegetarian"));
-    menu.addSeparator();
+    const diets = this.settings.diets.filter((d) => d.name.trim() && d.tags.length);
+    if (diets.length) {
+      header("Diet");
+      for (const diet of diets) add(diet.name.trim(), "salad", (r) => fitsDiet(diet, r.tags));
+      menu.addSeparator();
+    }
     add("No photo", "image-off", (r) => !r.fm.photo);
     if (current !== undefined) {
       menu.addSeparator();
@@ -2018,6 +2032,43 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
           await plugin.saveSettings();
         }),
       );
+
+    // Diets: each a name and the tags that put a recipe in it. Used by the browser's Filter menu and Insights.
+    new Setting(containerEl).setName("Diets").setHeading()
+      .setDesc("A recipe fits a diet when it has any of the diet's tags. Diets show in the recipe browser's Filter menu and in Insights.");
+    const dietList = containerEl.createDiv();
+    const renderDiets = () => {
+      dietList.empty();
+      plugin.settings.diets.forEach((diet, i) => {
+        new Setting(dietList)
+          .addText((t) => {
+            t.setPlaceholder("Diet name").setValue(diet.name).onChange(async (v) => {
+              diet.name = v;
+              await plugin.saveSettings();
+            });
+          })
+          .addText((t) => {
+            t.setPlaceholder("Tags, e.g. vegan, plant-based").setValue(diet.tags.join(", ")).onChange(async (v) => {
+              diet.tags = dietTags(v);
+              await plugin.saveSettings();
+            });
+            t.inputEl.addClass("cooklang-diet-tags");
+          })
+          .addExtraButton((b) => b.setIcon("trash-2").setTooltip("Remove this diet").onClick(async () => {
+            plugin.settings.diets.splice(i, 1);
+            await plugin.saveSettings();
+            renderDiets();
+          }))
+          .settingEl.addClass("cooklang-diet-row");
+      });
+      new Setting(dietList).addButton((b) => b.setButtonText("Add diet").onClick(async () => {
+        plugin.settings.diets.push({ name: "", tags: [] });
+        await plugin.saveSettings();
+        renderDiets();
+        dietList.querySelectorAll<HTMLInputElement>(".cooklang-diet-row input")[2 * (plugin.settings.diets.length - 1)]?.focus();
+      }));
+    };
+    renderDiets();
 
 
     new Setting(containerEl).setName("Recipe importer: Claude").setHeading();

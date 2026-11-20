@@ -4,6 +4,7 @@
 
 import { BasesView, QueryController, TFile, setIcon } from "obsidian";
 import { minutesIn } from "./textRecipe";
+import { type Diet, fitsDiet } from "./diets";
 
 export const INSIGHTS_VIEW = "recipe-insights";
 
@@ -19,6 +20,8 @@ export interface InsightActions {
   /** Narrow the All recipes view to these recipes, labelled (for the toolbar chip) with `label`. */
   filter(label: string, files: TFile[]): void;
   view(name: string): void;
+  /** The diets set in settings. */
+  diets(): Diet[];
 }
 
 const num = (v: unknown): number | null => {
@@ -166,16 +169,15 @@ export class RecipeInsightsView extends BasesView {
     if (byFolder.length > 1) this.bars(collection.card("By folder"), byFolder);
     const topTags = rankedRecipes(recipes, (r) => r.tags, 10).map((row) => ({ ...row, pick: () => this.actions.show("tag", row.label) }));
     if (topTags.length) this.bars(collection.card("Top tags"), topTags);
-    const vegan = recipes.filter((r) => r.tags.includes("vegan"));
-    const vegetarian = recipes.filter((r) => !r.tags.includes("vegan") && r.tags.includes("vegetarian"));
-    if (vegan.length || vegetarian.length) {
-      const other = recipes.filter((r) => !r.tags.includes("vegan") && !r.tags.includes("vegetarian"));
+    // Diets from settings, each a set of tags. A recipe can fit more than one.
+    const diets = this.actions.diets().map((d) => ({ diet: d, files: recipes.filter((r) => fitsDiet(d, r.tags)).map((r) => r.file) }));
+    if (diets.some((d) => d.files.length)) {
+      const none = recipes.filter((r) => !diets.some((d) => fitsDiet(d.diet, r.tags)));
       const pct = (n: number) => `${n} · ${Math.round((100 * n) / recipes.length)}%`;
       this.bars(collection.card("Diet", "From tags"), [
-        { label: "Vegan", value: vegan.length, text: pct(vegan.length), pick: () => this.actions.show("tag", "vegan") },
-        { label: "Vegetarian", value: vegetarian.length, text: pct(vegetarian.length), pick: () => this.actions.show("tag", "vegetarian") },
-        { label: "Other", value: other.length, text: pct(other.length), files: other.map((r) => r.file) },
-      ], () => "Not vegan or vegetarian");
+        ...diets.map(({ diet, files }) => ({ label: diet.name.trim(), value: files.length, text: pct(files.length), files })),
+        { label: "None of these", value: none.length, text: pct(none.length), files: none.map((r) => r.file) },
+      ], (row) => (row.label === "None of these" ? "No diet" : row.label));
     }
 
     // Ratings
