@@ -195,7 +195,7 @@ export class RecipeImporter extends Component {
   onload() {
     // Keep the parsed browser base current, for the folder picker.
     this.registerEvent(this.app.vault.on("modify", (f) => {
-      if (f.path === this.browserPath()) void this.loadBrowserBase();
+      if (f.path === this.browserPath()) void this.loadBrowserBase().then(() => this.refreshBrowsers());
     }));
     this.host.addCommand({
       id: "import-recipe-from-url",
@@ -283,6 +283,7 @@ export class RecipeImporter extends Component {
     this.openInNewTab(view);
     this.browserHaptics(view);
     this.folderPicker(view);
+    this.filterChip(view);
     const show = this.settings.cardShow;
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
@@ -337,6 +338,56 @@ export class RecipeImporter extends Component {
         window.clearTimeout(timer);
       });
     }
+  }
+
+  /**
+   * While a folder or tag view shows just one folder or tag, a chip in the toolbar says which, and tapping it
+   * goes back to all of them.
+   */
+  private filterChip(view: any) {
+    const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
+    if (!toolbar) return;
+    const viewName = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
+    const kind = this.pickerViews().get(viewName);
+    const spec = kind ? this.browserBase()?.views?.find((v: any) => v?.name === viewName) : null;
+    const rules: string[] = [];
+    const collect = (f: any) => {
+      if (typeof f === "string") rules.push(f);
+      else if (f && typeof f === "object") Object.values(f).forEach(collect);
+    };
+    collect(spec?.filters);
+    const re = kind === "tag" ? /file\.hasTag\("([^"]+)"\)/ : /file\.folder\s*==\s*"([^"]+)"/;
+    let value = kind ? rules.map((r) => re.exec(r)?.[1]).find(Boolean) ?? null : null;
+    if (value && kind === "folder") value = value.split("/").pop() ?? value;
+
+    let chip = toolbar.querySelector<HTMLElement>(".cooklang-filter-chip");
+    if (!value) {
+      chip?.remove();
+      return;
+    }
+    const key = `${viewName}\u0000${value}`;
+    if (chip?.dataset.key === key) return;
+    chip?.remove();
+    chip = createDiv({ cls: "bases-toolbar-item cooklang-filter-chip" });
+    chip.dataset.key = key;
+    const button = chip.createDiv({
+      cls: "cooklang-filter-chip-button",
+      attr: { tabindex: "0", role: "button", "aria-label": `Showing ${value}. Click to show all.` },
+    });
+    setIcon(button.createSpan({ cls: "cooklang-filter-chip-icon" }), kind === "tag" ? "tag" : "folder");
+    button.createSpan({ text: value });
+    setIcon(button.createSpan({ cls: "cooklang-filter-chip-x" }), "x");
+    const clear = () => void this.setViewFilter(viewName, null);
+    button.addEventListener("click", clear);
+    button.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        clear();
+      }
+    });
+    const after = toolbar.querySelector(".dj-base-tabs") ?? toolbar.querySelector(".bases-toolbar-views-menu");
+    if (after) after.after(chip);
+    else toolbar.prepend(chip);
   }
 
   /** The browser's views that have a picker: those grouping by folder, and those grouping by first tag. */
@@ -429,7 +480,7 @@ export class RecipeImporter extends Component {
     menu.addItem((i) => i.setTitle("All folders").setIcon("folders").setChecked(current === null).onClick(choose(null)));
     menu.addSeparator();
     for (const path of folders) {
-      menu.addItem((i) => i.setTitle(path.slice(root.length + 1)).setIcon("folder").setChecked(current === path).onClick(choose(path)));
+      menu.addItem((i) => i.setTitle(path.slice(root.length + 1)).setIcon("folder").setChecked(current === path).onClick(choose(current === path ? null : path)));
     }
     menu.showAtPosition(at);
   }
@@ -452,7 +503,7 @@ export class RecipeImporter extends Component {
     menu.addItem((i) => i.setTitle("All tags").setIcon("tags").setChecked(current === null).onClick(choose(null)));
     menu.addSeparator();
     for (const [tag, n] of this.recipeTags()) {
-      menu.addItem((i) => i.setTitle(`${tag} (${n})`).setIcon("tag").setChecked(current === tag).onClick(choose(tag)));
+      menu.addItem((i) => i.setTitle(`${tag} (${n})`).setIcon("tag").setChecked(current === tag).onClick(choose(current === tag ? null : tag)));
     }
     menu.showAtPosition(at);
   }

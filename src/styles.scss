@@ -1273,3 +1273,28 @@ button.cook-pill.is-clickable {
     margin-right: 0.35em;
   }
 }
+
+// The chip that shows which folder or tag a view is narrowed to; tapping it shows all again.
+.cooklang-filter-chip-button {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius-l);
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: var(--interactive-accent-hover);
+  }
+}
+
+.cooklang-filter-chip-icon,
+.cooklang-filter-chip-x {
+  display: inline-flex;
+  --icon-size: 12px;
+  --icon-stroke: 2.5px;
+}
