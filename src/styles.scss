@@ -1682,3 +1682,32 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
     }
   }
 }
+
+// The Insights view: stats on the recipes the browser shows (modelled on Daily Journal's Trends).
+.cooklang-insights-host { overflow-y: auto; }
+.cooklang-insights { padding: var(--size-4-4); display: flex; flex-direction: column; gap: var(--size-4-8); max-width: 1100px; }
+.cooklang-insights-empty { color: var(--text-muted); padding: var(--size-4-6) 0; }
+.cooklang-insights-section { display: flex; flex-direction: column; gap: var(--size-4-3); }
+.cooklang-insights-section-title { font-size: var(--font-ui-medium); font-weight: 600; color: var(--text-normal); padding-bottom: var(--size-4-1); border-bottom: 1px solid var(--background-modifier-border); }
+.cooklang-insights-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--size-4-3); }
+.cooklang-insights-tile, .cooklang-insights-card { background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-l); }
+.cooklang-insights-tile { padding: var(--size-4-3) var(--size-4-4); }
+.cooklang-insights-tile-value { font-size: 1.6em; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.cooklang-insights-tile-label { color: var(--text-muted); font-size: var(--font-ui-small); }
+.cooklang-insights-tile-hint { color: var(--text-faint); font-size: var(--font-ui-smaller); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cooklang-insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--size-4-3); align-items: stretch; }
+.cooklang-insights-card { padding: var(--size-4-3) var(--size-4-4) var(--size-4-4); min-width: 0; }
+.cooklang-insights-card-head { margin-bottom: var(--size-4-3); }
+.cooklang-insights-card-title { font-weight: 600; }
+.cooklang-insights-card-note, .cooklang-insights-muted { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.cooklang-insights-bars { display: grid; grid-template-columns: minmax(0, max-content) minmax(60px, 1fr) auto; gap: 6px 10px; align-items: center; font-size: var(--font-ui-small); }
+.cooklang-insights-bar-row { display: contents; }
+.cooklang-insights-bar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 16em; }
+.cooklang-insights-bar-track { height: 10px; }
+.cooklang-insights-bar-fill { height: 100%; background: var(--interactive-accent); border-radius: 0 4px 4px 0; }
+.cooklang-insights-bar-value { color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
+.cooklang-insights-list { display: flex; flex-direction: column; gap: 6px; font-size: var(--font-ui-small); }
+.cooklang-insights-list-row { display: flex; justify-content: space-between; gap: 1em; }
+.cooklang-insights-list-row > :last-child { white-space: nowrap; }
+.cooklang-insights-link { color: var(--text-normal); text-decoration: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cooklang-insights-link:hover { color: var(--text-accent); text-decoration: underline; }

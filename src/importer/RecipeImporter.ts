@@ -4,6 +4,7 @@ import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./conver
 import { CLAUDE_MODELS, DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
 import { minutesIn, parseRecipeText } from "./textRecipe";
 import { hapticTap, TAPPABLE } from "../utils/haptics";
+import { INSIGHTS_VIEW, RecipeInsightsView } from "./insights";
 import { syncBrowserRows } from "./rating";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
 
@@ -27,6 +28,8 @@ export interface ImporterSettings {
   tagViewAdded: boolean;
   /** The By tag view's grouping by first tag was removed from an existing browser (done once). */
   tagViewUngrouped: boolean;
+  /** The Insights view was added to an existing recipe browser (done once, so deleting it sticks). */
+  insightsViewAdded: boolean;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -42,6 +45,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   useClaude: true,
   tagViewAdded: false,
   tagViewUngrouped: false,
+  insightsViewAdded: false,
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -158,6 +162,9 @@ function recipeBaseContent(): string {
     "    sort:",
     "      - property: file.name",
     "        direction: ASC",
+    `  - type: ${INSIGHTS_VIEW}`,
+    "    name: Insights",
+    "    icon: chart-bar",
     "",
   ].join("\n");
 }
@@ -196,6 +203,15 @@ export class RecipeImporter extends Component {
   }
 
   onload() {
+    // An Insights tab for the recipe browser: stats on the recipes it shows (Bases view types need Obsidian 1.10+).
+    (this.host as any).registerBasesView?.(INSIGHTS_VIEW, {
+      name: "Insights",
+      icon: "chart-bar",
+      factory: (controller: any, containerEl: HTMLElement) => new RecipeInsightsView(controller, containerEl, (file) => {
+        const leaf = this.settings.browserNewTab ? this.app.workspace.getLeaf("tab") : this.app.workspace.getLeaf(false);
+        void this.host.openAsRecipe(leaf, file);
+      }),
+    });
     // Keep the parsed browser base current, for the folder picker.
     this.registerEvent(this.app.vault.on("modify", (f) => {
       if (f.path === this.browserPath()) void this.loadBrowserBase().then(() => this.refreshBrowsers());
@@ -294,7 +310,7 @@ export class RecipeImporter extends Component {
     // The browser's base, parsed, for the folder and tag views (the By tag view is added once if missing).
     if (!this.browserBase() && !this.baseLoading) {
       this.baseLoading = true;
-      void this.ensureTagView().then(() => this.ungroupTagView()).then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
+      void this.ensureTagView().then(() => this.ungroupTagView()).then(() => this.ensureInsightsView()).then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
     }
     this.renderSidebar(view);
     const show = this.settings.cardShow;
@@ -443,6 +459,21 @@ export class RecipeImporter extends Component {
       }
     }
     return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }
+
+  /** Adds the Insights view to a recipe browser made before it existed. Once only, so deleting it sticks. */
+  private async ensureInsightsView() {
+    if (this.settings.insightsViewAdded) return;
+    const file = this.app.vault.getAbstractFileByPath(this.browserPath());
+    if (!(file instanceof TFile)) return;
+    this.settings.insightsViewAdded = true;
+    await this.saveSettings();
+    await this.app.vault.process(file, (text) => {
+      const data = parseYaml(text);
+      if (!Array.isArray(data?.views) || data.views.some((v: any) => v?.type === INSIGHTS_VIEW)) return text;
+      data.views.push({ type: INSIGHTS_VIEW, name: "Insights", icon: "chart-bar" });
+      return stringifyYaml(data);
+    });
   }
 
   /** Older browsers grouped the By tag view by each recipe's first tag, which read as a jumble; make it a list. */
