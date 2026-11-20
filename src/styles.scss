@@ -1246,4 +1246,10 @@ button.cook-pill.is-clickable {
     padding: 0;
     background: none;
   }
+
+  // Separate the tags: "chinese, chicken".
+  .value-list-element:not(:last-child)::after {
+    content: ",";
+    margin-right: 0.35em;
+  }
 }
