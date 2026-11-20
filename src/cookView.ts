@@ -9,6 +9,7 @@ import { writable } from 'svelte/store';
 import CookViewRoot from './ui/CookViewRoot.svelte';
 import type { RecipeHostAdapter, RecipeRenderModel } from './ui/types';
 import { recipeName } from './utils/recipeFiles';
+import { hapticTap, TAPPABLE } from './utils/haptics';
 
 /** Interactive preview only. Obsidian owns every source editor. */
 export class CookView extends TextFileView {
@@ -35,6 +36,10 @@ export class CookView extends TextFileView {
     async onload(): Promise<void> {
         super.onload();
         this.addAction('edit-3', 'Edit recipe source', () => { void this.editSource(this.leaf); });
+        // A haptic tick for every button in the recipe, its header included.
+        this.registerDomEvent(this.containerEl, 'click', (evt) => {
+            if ((evt.target as HTMLElement | null)?.closest(TAPPABLE)) hapticTap(this.settings.haptics);
+        }, { capture: true });
         await parserService.initialize();
         if (!this.disposed) this.renderPreview();
     }

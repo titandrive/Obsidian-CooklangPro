@@ -16,3 +16,4 @@ export class Notice {
 }
 
 export function setIcon(_el: HTMLElement, _icon: string): void {}
+export const Platform = { isMobile: false, isDesktopApp: true, isMacOS: false };

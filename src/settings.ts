@@ -28,6 +28,8 @@ export class CooklangSettings {
   showServingsScaler: boolean = true;
   twoColumnLayout: boolean = true;
   enableStepTracking: boolean = true;
+  /** A light vibration when tapping buttons in recipes and the recipe browser (phones and tablets). */
+  haptics: boolean = true;
   servingsLabel: string = "";
   metadataLabel: string = "";
   ingredientLabel: string = "";
@@ -149,6 +151,16 @@ export class CookSettingsTab extends PluginSettingTab {
           this.plugin.settings.twoColumnLayout = value;
           this.plugin.saveData(this.plugin.settings);
           this.plugin.reloadCookViews();
+        }));
+
+    new Setting(containerEl)
+      .setName('Haptic feedback')
+      .setDesc('A light vibration on phones and tablets when you tap buttons in a recipe or the recipe browser')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.haptics)
+        .onChange((value: boolean) => {
+          this.plugin.settings.haptics = value;
+          this.plugin.saveData(this.plugin.settings);
         }));
 
     new Setting(containerEl)

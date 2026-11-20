@@ -3,6 +3,7 @@ import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
 import { CLAUDE_MODELS, DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
 import { parseRecipeText } from "./textRecipe";
+import { hapticTap, TAPPABLE } from "../utils/haptics";
 import { syncBrowserRows } from "./rating";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
 
@@ -39,7 +40,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
 
 /** What the importer needs from the CooklangPro plugin. */
 export interface ImporterHost extends Plugin {
-  settings: { importer?: Partial<ImporterSettings> };
+  settings: { importer?: Partial<ImporterSettings>; haptics?: boolean };
   saveSettings(): Promise<void>;
   openAsRecipe(leaf: WorkspaceLeaf, file: TFile): Promise<void>;
 }
@@ -265,6 +266,7 @@ export class RecipeImporter extends Component {
     syncBrowserRows(this.app, view, (f) => this.isRecipe(f), isBrowser);
     if (!isBrowser || !el) return;
     this.openInNewTab(view);
+    this.browserHaptics(view);
     const show = this.settings.cardShow;
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
@@ -273,6 +275,22 @@ export class RecipeImporter extends Component {
   }
 
   private newTabViews = new WeakSet<object>();
+  private hapticViews = new WeakMap<object, string>();
+
+  /** Haptic ticks in the recipe browser: its buttons, cards and table rows, and switching views. */
+  private browserHaptics(view: any) {
+    const tap = () => hapticTap(this.host.settings.haptics !== false);
+    // The view picker is a menu outside the browser, so a view switch is noticed when the browser redraws.
+    const viewName = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
+    const last = this.hapticViews.get(view);
+    if (last !== undefined && last !== viewName) tap();
+    const first = last === undefined;
+    this.hapticViews.set(view, viewName);
+    if (!first) return;
+    this.registerDomEvent(view.containerEl, "click", (evt: MouseEvent) => {
+      if ((evt.target as HTMLElement | null)?.closest(`${TAPPABLE}, .bases-cards-item, .bases-tr, .bases-toolbar-item, .recipe-importer-rating-star, .recipe-importer-favorite`)) tap();
+    }, { capture: true });
+  }
 
   /** In the recipe browser, a click on a card or a recipe name in the table opens it in a new tab. */
   private openInNewTab(view: any) {

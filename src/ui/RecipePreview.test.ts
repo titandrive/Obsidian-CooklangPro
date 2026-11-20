@@ -50,6 +50,7 @@ function settings() {
         showServingsScaler: true,
         twoColumnLayout: true,
         enableStepTracking: true,
+        haptics: true,
         servingsLabel: '',
         metadataLabel: '',
         ingredientLabel: '',
