@@ -216,10 +216,6 @@ export class RecipeInsightsView extends BasesView {
     const ingredients = section("Ingredients");
     const common = rankedRecipes(recipes, (r) => r.ingredients, 12);
     const counts = recipes.map((r) => r.ingredients.length).filter((n) => n > 0);
-    if (counts.length) {
-      ingredients.tile("Typical ingredient count", String(Math.round(median(counts))), "per recipe");
-      ingredients.tile("Different ingredients", String(new Set(recipes.flatMap((r) => r.ingredients)).size));
-    }
     if (common.length) this.bars(ingredients.card("Most used", "Recipes using each"), common);
     if (counts.length) {
       const fewest = [...recipes].filter((r) => r.ingredients.length).sort((a, b) => a.ingredients.length - b.ingredients.length).slice(0, 6);
