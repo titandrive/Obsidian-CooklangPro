@@ -582,8 +582,10 @@ export class RecipeImporter extends Component {
 
     const total = this.app.vault.getMarkdownFiles().filter((f) => this.isRecipe(f)).length;
     const item = (label: string, icon: string, count: number, selected: boolean, onPick: (multi: boolean) => void,
-      custom: { icon: string; color?: string } | null = null) => {
+      custom: { icon: string; color?: string } | null = null, value: string | null = null) => {
       const row = bar!.createDiv({ cls: "cooklang-sidebar-item" + (selected ? " is-selected" : ""), attr: { role: "button", tabindex: "0" } });
+      // Right-click (long-press on phones) a folder or tag to change its icon, through the Iconic plugin.
+      if (value !== null) this.sidebarContextMenu(row, kind, value);
       const iconEl = row.createSpan({ cls: "cooklang-sidebar-icon" });
       // An icon set with the Iconic plugin for this folder or tag: a Lucide icon or an emoji, maybe coloured.
       if (custom?.icon && !/^lucide-/.test(custom.icon) && !/^[a-z0-9-]+$/.test(custom.icon)) iconEl.setText(custom.icon);
@@ -618,8 +620,60 @@ export class RecipeImporter extends Component {
           next = picked && selection!.size === 1 ? all : new Set([o.value]);
         }
         void this.applySelection(view, viewName, kind, options, next);
-      }, this.iconicIcon(kind, o.value));
+      }, this.iconicIcon(kind, o.value), o.value);
     }
+  }
+
+  /**
+   * Right-click or long-press on a sidebar folder or tag. A folder gets its usual menu (as in the file explorer),
+   * which has Iconic's Change icon and Remove icon; a tag gets Iconic's own tag menu. The icon is saved by Iconic,
+   * so it shows everywhere Iconic shows it, and here once the browser redraws.
+   */
+  private sidebarContextMenu(row: HTMLElement, kind: "folder" | "tag", value: string) {
+    const open = (evt: MouseEvent) => {
+      if (kind === "folder") {
+        const folder = this.app.vault.getAbstractFileByPath(value);
+        if (!(folder instanceof TFolder)) return;
+        const menu = new Menu();
+        this.app.workspace.trigger("file-menu", menu, folder, "file-explorer-context-menu");
+        menu.showAtMouseEvent(evt);
+      } else {
+        const iconic = (this.app as any).plugins?.plugins?.iconic;
+        if (!iconic?.tagIconManager?.onContextMenu) {
+          new Notice("Install the Iconic plugin to give tags icons.");
+          return;
+        }
+        iconic.tagIconManager.onContextMenu(value, evt);
+      }
+      // Pick up the new icon when Iconic saves it.
+      window.setTimeout(() => this.refreshBrowsers(), 1500);
+    };
+    row.addEventListener("contextmenu", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      open(evt);
+    });
+    let timer = 0;
+    let longPressed = false;
+    row.addEventListener("pointerdown", (evt) => {
+      if (evt.pointerType !== "touch") return;
+      longPressed = false;
+      const { clientX, clientY } = evt;
+      timer = window.setTimeout(() => {
+        longPressed = true;
+        hapticTap(this.host.settings.haptics !== false);
+        open(new MouseEvent("contextmenu", { clientX, clientY }));
+      }, 500);
+    });
+    for (const type of ["pointerup", "pointercancel", "pointerleave"]) row.addEventListener(type, () => window.clearTimeout(timer));
+    // The tap that ends a long press shouldn't also pick the item.
+    row.addEventListener("click", (evt) => {
+      if (longPressed) {
+        evt.stopImmediatePropagation();
+        evt.preventDefault();
+        longPressed = false;
+      }
+    }, { capture: true });
   }
 
   /** The icon the Iconic plugin has for a folder (by path) or tag, if it's installed and one is set. */
