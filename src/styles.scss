@@ -1801,3 +1801,8 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-diet-row .cooklang-diet-tags {
   width: 18em;
 }
+
+// Phones too narrow for every toolbar button: Filter moves into the Options menu.
+.cooklang-recipe-browser .bases-toolbar.cooklang-filter-folded .cooklang-filter-menu {
+  display: none;
+}

@@ -410,6 +410,7 @@ export class RecipeImporter extends Component {
     this.addFilterButton(view);
     this.addShowButton(view);
     this.addImportButton(view);
+    this.foldFilterButton(view);
     this.renderCardDetails(view);
   }
 
@@ -1047,6 +1048,24 @@ export class RecipeImporter extends Component {
     toolbar.insertBefore(item, toolbar.querySelector(".cooklang-show-menu") ?? toolbar.querySelector(".bases-toolbar-sort-menu"));
   }
 
+  /** Phones: when the toolbar is too narrow for everything, the Filter button folds into the Options menu. */
+  private foldFilterButton(view: any) {
+    const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
+    if (!toolbar || !Platform.isMobile) return;
+    const fit = () => {
+      toolbar.removeClass("cooklang-filter-folded");
+      if (toolbar.scrollWidth > toolbar.clientWidth + 2) toolbar.addClass("cooklang-filter-folded");
+    };
+    fit();
+    if (this.foldWatched.has(toolbar)) return;
+    this.foldWatched.add(toolbar);
+    const observer = new ResizeObserver(() => fit());
+    observer.observe(toolbar);
+    this.register(() => observer.disconnect());
+  }
+
+  private foldWatched = new WeakSet<HTMLElement>();
+
   /** Recipe filters: favorites, rating, time, diet, missing photo. Picking one shows those recipes in All recipes, with
    *  a chip in the search box to clear it (the same as clicking a bar in Insights). */
   private openFilterMenu(view: any, evt: MouseEvent) {
@@ -1168,9 +1187,15 @@ export class RecipeImporter extends Component {
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
     menu.addSeparator();
     toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
-    // Phones: Sort lives here, since the toolbar has no room for it. It opens Bases' own menu.
+    // Phones: Sort lives here, since the toolbar has no room for it. It opens Bases' own menu. So does Filter when
+    // the toolbar is too narrow for its button.
     if (Platform.isMobile) {
       menu.addSeparator();
+      if (view?.containerEl?.querySelector(".bases-toolbar.cooklang-filter-folded")) {
+        menu.addItem((i) => i.setTitle("Filter").setIcon("list-filter").onClick(() => {
+          window.setTimeout(() => this.openFilterMenu(view, evt), 50);
+        }));
+      }
       for (const [title, icon, cls] of [["Sort", "arrow-up-down", "sort"]] as const) {
         menu.addItem((i) => i.setTitle(title).setIcon(icon).onClick(() => {
           const button = view?.containerEl?.querySelector(`.bases-toolbar-${cls}-menu .text-icon-button`) as HTMLElement | null;
