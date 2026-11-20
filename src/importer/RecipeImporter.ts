@@ -326,6 +326,7 @@ export class RecipeImporter extends Component {
       });
     }
     this.addShowButton(view);
+    this.addImportButton(view);
     this.renderCardDetails(view);
   }
 
@@ -717,6 +718,25 @@ export class RecipeImporter extends Component {
     toolbar.insertBefore(item, toolbar.querySelector(".bases-toolbar-sort-menu"));
   }
 
+  /** An "Import" button at the end of the recipe browser's toolbar, in place of Bases' New button. */
+  private addImportButton(view: any) {
+    const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
+    if (!toolbar || toolbar.querySelector(".cooklang-import-button")) return;
+    const item = createDiv({ cls: "bases-toolbar-item cooklang-import-button" });
+    const button = item.createDiv({ cls: "text-icon-button", attr: { tabindex: "0", role: "button", "aria-label": "Import a recipe" } });
+    setIcon(button.createSpan({ cls: "text-button-icon" }), "import");
+    button.createSpan({ cls: "text-button-label", text: "Import" });
+    const open = () => new ImportModal(this.app, this).open();
+    button.addEventListener("click", open);
+    button.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    });
+    toolbar.appendChild(item);
+  }
+
   private openShowMenu(view: any, evt: MouseEvent) {
     const show = this.settings.cardShow;
     const config = view?.controller?.view?.config;
@@ -757,7 +777,7 @@ export class RecipeImporter extends Component {
 
 
   onunload() {
-    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu").forEach((el) => el.remove());
+    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button").forEach((el) => el.remove());
   }
 
   /** The photos folder, when photos are kept in their own folder; null when they go beside recipes. */

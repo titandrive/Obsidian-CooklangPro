@@ -1492,3 +1492,22 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-recipe-browser .bases-toolbar:has(.dj-base-tabs) .bases-toolbar-views-menu {
   display: none;
 }
+
+// The recipe browser's toolbar has an Import button in place of Bases' New button.
+.cooklang-recipe-browser .bases-toolbar-new-item-menu {
+  display: none;
+}
+
+// On phones Bases tucks Sort and Filter into its Display menu, which the browser hides; show them as icons.
+.is-mobile .cooklang-recipe-browser {
+  .bases-toolbar-sort-menu,
+  .bases-toolbar-filter-menu {
+    display: flex !important;
+  }
+
+  .bases-toolbar-sort-menu .text-button-label,
+  .bases-toolbar-filter-menu .text-button-label,
+  .cooklang-import-button .text-button-label {
+    display: none;
+  }
+}
