@@ -1298,3 +1298,10 @@ button.cook-pill.is-clickable {
   --icon-size: 12px;
   --icon-stroke: 2.5px;
 }
+
+// The recipe browser doesn't need Bases' Properties and Group buttons: the Show menu covers what cards show,
+// and the folder and tag views do the grouping.
+.cooklang-recipe-browser .bases-toolbar-properties-menu,
+.cooklang-recipe-browser .bases-toolbar-group-menu {
+  display: none;
+}
