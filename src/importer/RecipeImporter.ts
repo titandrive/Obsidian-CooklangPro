@@ -23,6 +23,8 @@ export interface ImporterSettings {
   browserNewTab: boolean;
   /** Use Claude when there's an API key; switched in the import dialog. */
   useClaude: boolean;
+  /** The By tag view was added to an existing recipe browser (done once, so deleting it sticks). */
+  tagViewAdded: boolean;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -36,6 +38,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   cardShow: { heart: true, stars: true, time: true, servings: true },
   browserNewTab: true,
   useClaude: true,
+  tagViewAdded: false,
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -67,6 +70,9 @@ interface Prepared {
 }
 
 /** An Obsidian base listing every recipe note (recipe: true), with photo cards and a table. */
+/** A recipe's first tag, or "No tags"; the By tag view groups by it. */
+const FIRST_TAG_FORMULA = 'if(tags && tags.length > 0, list(tags)[0], "No tags")';
+
 function recipeBaseContent(): string {
   // Compact cards: the name, "30 minutes · 6 servings", and tags. The heart and stars are overlaid on the
   // photo and the property labels hidden by the plugin (see syncBrowser and the styles).
@@ -94,6 +100,8 @@ function recipeBaseContent(): string {
     `  details: 'if(time, time, "") + if(time && servings, " · ", "") + if(servings, servings + if(servings == 1, " serving", " servings"), "")'`,
     `  favorite_icon: 'if(favorite == true, [icon("heart")], [])'`,
     `  rating_stars: '[1,2,3,4,5].filter(value <= number(rating)).map(icon("star"))'`,
+    // The By tag view groups each recipe under its first tag (usually the cuisine).
+    `  first_tag: '${FIRST_TAG_FORMULA}'`,
     "properties:",
     "  file.name:",
     "    displayName: Recipe",
@@ -119,9 +127,12 @@ function recipeBaseContent(): string {
     "    displayName: Tags",
     "  note.source:",
     "    displayName: Source",
+    "  formula.first_tag:",
+    "    displayName: Tag",
     "views:",
     ...cards("All recipes", ["    icon: chef-hat"]),
     ...cards("By folder", ["    icon: folder", "    groupBy:", "      property: file.folder", "      direction: ASC"]),
+    ...cards("By tag", ["    icon: tag", "    groupBy:", "      property: formula.first_tag", "      direction: ASC"]),
     ...cards("Favorites", ["    icon: heart", "    filters:", "      and:", "        - favorite == true"]),
     ...cards("Top rated", ["    icon: star", "    filters:", "      and:", "        - rating >= 4"], [["note.rating", "DESC"], ["file.name", "ASC"]]),
     "  - type: table",
@@ -291,13 +302,13 @@ export class RecipeImporter extends Component {
     const el: HTMLElement | undefined = view?.containerEl;
     if (!el || this.folderPickerViews.has(view)) return;
     this.folderPickerViews.add(view);
-    if (!this.browserBase()) void this.loadBrowserBase();
-    // The view a tab or the views button stands for, if it groups by folder.
+    if (!this.browserBase()) void this.ensureTagView().then(() => this.loadBrowserBase());
+    // The view a tab or the views button stands for, if it groups by folder or by tag.
     const folderViewAt = (target: HTMLElement | null): string | null => {
       const tab = target?.closest<HTMLElement>("[data-view]");
       const name = tab?.dataset.view
         ?? (target?.closest(".bases-toolbar-views-menu") ? String(view?.leaf?.getViewState?.()?.state?.viewName ?? "") : null);
-      return name && this.folderViewNames().has(name) ? name : null;
+      return name && this.pickerViews().has(name) ? name : null;
     };
     const open = (name: string, at: { x: number; y: number }) => {
       hapticTap(this.host.settings.haptics !== false);
@@ -328,10 +339,55 @@ export class RecipeImporter extends Component {
     }
   }
 
-  /** Names of the browser's views that group by folder. */
-  private folderViewNames(): Set<string> {
-    const base = this.browserBase();
-    return new Set((base?.views ?? []).filter((v: any) => v?.groupBy?.property === "file.folder").map((v: any) => String(v.name)));
+  /** The browser's views that have a picker: those grouping by folder, and those grouping by first tag. */
+  private pickerViews(): Map<string, "folder" | "tag"> {
+    const views = new Map<string, "folder" | "tag">();
+    for (const v of this.browserBase()?.views ?? []) {
+      const by = v?.groupBy?.property;
+      if (by === "file.folder") views.set(String(v.name), "folder");
+      else if (by === "formula.first_tag") views.set(String(v.name), "tag");
+    }
+    return views;
+  }
+
+  /** Every tag used by a recipe, with how many recipes use it, most used first. */
+  private recipeTags(): [string, number][] {
+    const counts = new Map<string, number>();
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (fm?.recipe !== true) continue;
+      const tags = Array.isArray(fm.tags) ? fm.tags : typeof fm.tags === "string" ? fm.tags.split(/[,\s]+/) : [];
+      for (const t of new Set(tags.map((t: unknown) => String(t).replace(/^#/, "").trim()).filter(Boolean))) {
+        counts.set(t as string, (counts.get(t as string) ?? 0) + 1);
+      }
+    }
+    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }
+
+  /** Adds the By tag view to a recipe browser made before it existed. Once only, so deleting it sticks. */
+  private async ensureTagView() {
+    if (this.settings.tagViewAdded) return;
+    const file = this.app.vault.getAbstractFileByPath(this.browserPath());
+    if (!(file instanceof TFile)) return;
+    this.settings.tagViewAdded = true;
+    await this.saveSettings();
+    await this.app.vault.process(file, (text) => {
+      const data = parseYaml(text);
+      if (!Array.isArray(data?.views) || data.views.some((v: any) => v?.groupBy?.property === "formula.first_tag")) return text;
+      data.formulas = { ...(data.formulas ?? {}), first_tag: FIRST_TAG_FORMULA };
+      data.properties = { ...(data.properties ?? {}), "formula.first_tag": { displayName: "Tag" } };
+      const folderView = data.views.find((v: any) => v?.groupBy?.property === "file.folder");
+      const tagView = {
+        ...(folderView ?? { type: "cards", image: "note.photo", cardSize: 200, order: ["file.name", "formula.details", "note.tags"] }),
+        name: "By tag",
+        icon: "tag",
+        groupBy: { property: "formula.first_tag", direction: "ASC" },
+      };
+      delete tagView.filters;
+      const at = folderView ? data.views.indexOf(folderView) + 1 : data.views.length;
+      data.views.splice(at, 0, tagView);
+      return stringifyYaml(data);
+    });
   }
 
   /** The browser's base file, parsed; kept current by loadBrowserBase (on setup and whenever the file changes). */
@@ -352,6 +408,7 @@ export class RecipeImporter extends Component {
     const base = await this.loadBrowserBase();
     const spec = base?.views?.find((v: any) => v?.name === viewName);
     if (!spec) return;
+    if (spec.groupBy?.property === "formula.first_tag") return this.openTagMenu(view, viewName, spec, at);
     const rules: string[] = [];
     const collect = (f: any) => {
       if (typeof f === "string") rules.push(f);
@@ -366,7 +423,7 @@ export class RecipeImporter extends Component {
     const menu = new Menu();
     menu.addItem((i) => i.setTitle("Show folder").setIsLabel(true));
     const choose = (folder: string | null) => async () => {
-      await this.setFolderFilter(viewName, folder);
+      await this.setViewFilter(viewName, folder ? `file.folder == "${folder.replace(/"/g, '\\"')}"` : null);
       view?.controller?.selectView?.(viewName);
     };
     menu.addItem((i) => i.setTitle("All folders").setIcon("folders").setChecked(current === null).onClick(choose(null)));
@@ -377,15 +434,38 @@ export class RecipeImporter extends Component {
     menu.showAtPosition(at);
   }
 
-  /** Saves (or clears) the folder a folder view shows, as that view's filter in the base file. */
-  private async setFolderFilter(viewName: string, folder: string | null) {
+  /** The By tag picker: all tags, or one tag (most used first, with how many recipes have it). */
+  private openTagMenu(view: any, viewName: string, spec: any, at: { x: number; y: number }) {
+    const rules: string[] = [];
+    const collect = (f: any) => {
+      if (typeof f === "string") rules.push(f);
+      else if (f && typeof f === "object") Object.values(f).forEach(collect);
+    };
+    collect(spec.filters);
+    const current = rules.map((r) => /file\.hasTag\("([^"]+)"\)/.exec(r)?.[1]).find(Boolean) ?? null;
+    const menu = new Menu();
+    menu.addItem((i) => i.setTitle("Show tag").setIsLabel(true));
+    const choose = (tag: string | null) => async () => {
+      await this.setViewFilter(viewName, tag ? `file.hasTag("${tag.replace(/"/g, "")}")` : null);
+      view?.controller?.selectView?.(viewName);
+    };
+    menu.addItem((i) => i.setTitle("All tags").setIcon("tags").setChecked(current === null).onClick(choose(null)));
+    menu.addSeparator();
+    for (const [tag, n] of this.recipeTags()) {
+      menu.addItem((i) => i.setTitle(`${tag} (${n})`).setIcon("tag").setChecked(current === tag).onClick(choose(tag)));
+    }
+    menu.showAtPosition(at);
+  }
+
+  /** Saves (or clears) a view's one filter rule in the base file. */
+  private async setViewFilter(viewName: string, rule: string | null) {
     const file = this.app.vault.getAbstractFileByPath(this.browserPath());
     if (!(file instanceof TFile)) return;
     await this.app.vault.process(file, (text) => {
       const data = parseYaml(text);
       const spec = data?.views?.find((v: any) => v?.name === viewName);
       if (!spec) return text;
-      if (folder) spec.filters = { and: [`file.folder == "${folder.replace(/"/g, '\\"')}"`] };
+      if (rule) spec.filters = { and: [rule] };
       else delete spec.filters;
       return stringifyYaml(data);
     });
