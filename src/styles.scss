@@ -1665,6 +1665,12 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-recipe-browser {
   --bases-cards-line-height: 20px;
 
+  // The tags line sits 6px higher, so it's as close to the time and servings as they are to the title.
+  .bases-cards-property[data-property="note.tags"] .bases-cards-line {
+    position: relative;
+    top: -6px;
+  }
+
   // The title keeps its full height, spilling a few pixels into the gap below so descenders aren't cut.
   .bases-cards-property[data-property="file.name"] {
     overflow: visible;
