@@ -1448,3 +1448,47 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
     display: none;
   }
 }
+
+// Phones: Obsidian scales toolbar icons up 1.3x, which crowds the recipe browser's toolbar until buttons are cut
+// off. Use desktop-sized icons and tighter buttons there.
+.is-mobile .cooklang-recipe-browser .bases-toolbar {
+  --icon-size: var(--icon-m);
+  gap: 0;
+
+  .clickable-icon,
+  .text-icon-button {
+    padding: var(--size-2-2) var(--size-2-3);
+  }
+
+  .dj-base-tabs {
+    gap: 0;
+  }
+}
+
+// Bases' Display button (a second cog on phones) isn't needed: the Options menu covers the cards.
+.cooklang-recipe-browser .bases-toolbar-display-menu {
+  display: none;
+}
+
+// The phone's search box: the magnifier centred in the field, and desktop-sized text.
+.is-mobile .cooklang-recipe-browser .cooklang-search-item {
+  .search-input-container::before {
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    -webkit-mask-size: 16px;
+    mask-size: 16px;
+  }
+
+  input {
+    font-size: var(--font-ui-small);
+    padding-left: 34px;
+  }
+}
+
+// With Daily Journal's view tabs showing, Bases' own views button (four squares and the view's name) repeats
+// them; hide it. Without the tabs it stays, as the only way to switch views.
+.cooklang-recipe-browser .bases-toolbar:has(.dj-base-tabs) .bases-toolbar-views-menu {
+  display: none;
+}
