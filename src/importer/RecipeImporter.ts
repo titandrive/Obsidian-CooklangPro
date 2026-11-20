@@ -1,4 +1,4 @@
-import { App, Component, Menu, Modal, Notice, Platform, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, requestUrl, setIcon } from "obsidian";
+import { App, Component, Menu, Modal, Notice, Platform, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, parseYaml, requestUrl, setIcon, stringifyYaml } from "obsidian";
 import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
 import { CLAUDE_MODELS, DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
@@ -182,6 +182,10 @@ export class RecipeImporter extends Component {
   }
 
   onload() {
+    // Keep the parsed browser base current, for the folder picker.
+    this.registerEvent(this.app.vault.on("modify", (f) => {
+      if (f.path === this.browserPath()) void this.loadBrowserBase();
+    }));
     this.host.addCommand({
       id: "import-recipe-from-url",
       name: "Import recipe",
@@ -267,6 +271,7 @@ export class RecipeImporter extends Component {
     if (!isBrowser || !el) return;
     this.openInNewTab(view);
     this.browserHaptics(view);
+    this.folderPicker(view);
     const show = this.settings.cardShow;
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
@@ -276,6 +281,115 @@ export class RecipeImporter extends Component {
 
   private newTabViews = new WeakSet<object>();
   private hapticViews = new WeakMap<object, string>();
+  private folderPickerViews = new WeakSet<object>();
+
+  /**
+   * Long-press (or right-click) the "By folder" view, as a view tab or the views button, to pick the one folder
+   * it shows. The choice is saved as that view's filter in the browser's base file.
+   */
+  private folderPicker(view: any) {
+    const el: HTMLElement | undefined = view?.containerEl;
+    if (!el || this.folderPickerViews.has(view)) return;
+    this.folderPickerViews.add(view);
+    if (!this.browserBase()) void this.loadBrowserBase();
+    // The view a tab or the views button stands for, if it groups by folder.
+    const folderViewAt = (target: HTMLElement | null): string | null => {
+      const tab = target?.closest<HTMLElement>("[data-view]");
+      const name = tab?.dataset.view
+        ?? (target?.closest(".bases-toolbar-views-menu") ? String(view?.leaf?.getViewState?.()?.state?.viewName ?? "") : null);
+      return name && this.folderViewNames().has(name) ? name : null;
+    };
+    const open = (name: string, at: { x: number; y: number }) => {
+      hapticTap(this.host.settings.haptics !== false);
+      void this.openFolderMenu(view, name, at);
+    };
+    this.registerDomEvent(el, "contextmenu", (evt: MouseEvent) => {
+      const name = folderViewAt(evt.target as HTMLElement);
+      if (!name) return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      open(name, { x: evt.clientX, y: evt.clientY });
+    }, { capture: true });
+    // Long press on touch screens. The click that ends it would switch tabs; let that happen, it shows the view.
+    let timer = 0;
+    this.registerDomEvent(el, "pointerdown", (evt: PointerEvent) => {
+      if (evt.pointerType !== "touch") return;
+      const name = folderViewAt(evt.target as HTMLElement);
+      if (!name) return;
+      const { clientX: x, clientY: y } = evt;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => open(name, { x, y }), 500);
+    });
+    for (const type of ["pointerup", "pointercancel", "pointermove"] as const) {
+      this.registerDomEvent(el, type, (evt: PointerEvent) => {
+        if (type === "pointermove" && evt.pointerType === "touch" && Math.abs(evt.movementX) + Math.abs(evt.movementY) < 4) return;
+        window.clearTimeout(timer);
+      });
+    }
+  }
+
+  /** Names of the browser's views that group by folder. */
+  private folderViewNames(): Set<string> {
+    const base = this.browserBase();
+    return new Set((base?.views ?? []).filter((v: any) => v?.groupBy?.property === "file.folder").map((v: any) => String(v.name)));
+  }
+
+  /** The browser's base file, parsed; kept current by loadBrowserBase (on setup and whenever the file changes). */
+  private browserBase(): any {
+    return this.lastBase?.path === this.browserPath() ? this.lastBase.data : null;
+  }
+  private lastBase: { path: string; data: any } | null = null;
+
+  private async loadBrowserBase(): Promise<any> {
+    const file = this.app.vault.getAbstractFileByPath(this.browserPath());
+    if (!(file instanceof TFile)) return null;
+    const data = parseYaml(await this.app.vault.cachedRead(file));
+    this.lastBase = { path: file.path, data };
+    return data;
+  }
+
+  private async openFolderMenu(view: any, viewName: string, at: { x: number; y: number }) {
+    const base = await this.loadBrowserBase();
+    const spec = base?.views?.find((v: any) => v?.name === viewName);
+    if (!spec) return;
+    const rules: string[] = [];
+    const collect = (f: any) => {
+      if (typeof f === "string") rules.push(f);
+      else if (f && typeof f === "object") Object.values(f).forEach(collect);
+    };
+    collect(spec.filters);
+    const current = rules.map((r) => /file\.folder\s*==\s*"([^"]+)"/.exec(r)?.[1]).find(Boolean) ?? null;
+    const root = normalizePath(this.settings.recipesFolder);
+    const folders = this.recipeFolders()
+      .map((name) => normalizePath(`${root}/${name}`))
+      .filter((path) => this.app.vault.getAbstractFileByPath(path) instanceof TFolder);
+    const menu = new Menu();
+    menu.addItem((i) => i.setTitle("Show folder").setIsLabel(true));
+    const choose = (folder: string | null) => async () => {
+      await this.setFolderFilter(viewName, folder);
+      view?.controller?.selectView?.(viewName);
+    };
+    menu.addItem((i) => i.setTitle("All folders").setIcon("folders").setChecked(current === null).onClick(choose(null)));
+    menu.addSeparator();
+    for (const path of folders) {
+      menu.addItem((i) => i.setTitle(path.slice(root.length + 1)).setIcon("folder").setChecked(current === path).onClick(choose(path)));
+    }
+    menu.showAtPosition(at);
+  }
+
+  /** Saves (or clears) the folder a folder view shows, as that view's filter in the base file. */
+  private async setFolderFilter(viewName: string, folder: string | null) {
+    const file = this.app.vault.getAbstractFileByPath(this.browserPath());
+    if (!(file instanceof TFile)) return;
+    await this.app.vault.process(file, (text) => {
+      const data = parseYaml(text);
+      const spec = data?.views?.find((v: any) => v?.name === viewName);
+      if (!spec) return text;
+      if (folder) spec.filters = { and: [`file.folder == "${folder.replace(/"/g, '\\"')}"`] };
+      else delete spec.filters;
+      return stringifyYaml(data);
+    });
+  }
 
   /** Haptic ticks in the recipe browser: its buttons, cards and table rows, and switching views. */
   private browserHaptics(view: any) {
