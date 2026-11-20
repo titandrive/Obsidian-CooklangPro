@@ -1649,7 +1649,14 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   display: none;
 }
 
-// While switching views, the cards are hidden until the new view has drawn (see hideUntilDrawn).
+// Switching views: the old cards disappear at once (Bases freezes the window while it builds the new view, so a
+// fade-out would just leave them on screen), and the new view fades in once it has drawn (see hideUntilDrawn).
+.cooklang-recipe-browser .view-content > .bases-view {
+  transition: opacity 180ms ease-out;
+}
+
 .cooklang-recipe-browser.cooklang-switching .view-content > .bases-view {
   visibility: hidden;
+  opacity: 0;
+  transition: none;
 }

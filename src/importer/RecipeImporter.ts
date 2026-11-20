@@ -408,7 +408,7 @@ export class RecipeImporter extends Component {
     const settle = () => {
       if (String(view?.leaf?.getViewState?.()?.state?.viewName ?? "") !== target) return;
       window.clearTimeout(quiet);
-      quiet = window.setTimeout(done, 60);
+      quiet = window.setTimeout(done, 20);
     };
     const observer = new MutationObserver(settle);
     observer.observe(cards, { childList: true, subtree: true });
