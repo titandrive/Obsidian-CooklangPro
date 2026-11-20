@@ -389,6 +389,7 @@ export class RecipeImporter extends Component {
         search.parentElement?.querySelector<HTMLElement>(".cooklang-results-chip-button")?.click();
       });
     }
+    this.addFilterButton(view);
     this.addShowButton(view);
     this.addImportButton(view);
     this.renderCardDetails(view);
@@ -431,10 +432,10 @@ export class RecipeImporter extends Component {
    * Import, the drawer button, the sidebar, the moved search box) so that base looks as it normally does.
    */
   private clearBrowserExtras(el: HTMLElement) {
-    if (!el.querySelector(".cooklang-show-menu, .cooklang-import-button, .cooklang-search-item, .cooklang-drawer-button, .cooklang-sidebar, .cooklang-results-chip")
+    if (!el.querySelector(".cooklang-show-menu, .cooklang-filter-menu, .cooklang-import-button, .cooklang-search-item, .cooklang-drawer-button, .cooklang-sidebar, .cooklang-results-chip")
       && !el.hasClass("cooklang-search-always")) return;
     this.placeSearchBox(el, false);
-    el.querySelectorAll(".cooklang-show-menu, .cooklang-import-button, .cooklang-drawer-button, .cooklang-drawer-shade, .cooklang-sidebar, .cooklang-results-chip")
+    el.querySelectorAll(".cooklang-show-menu, .cooklang-filter-menu, .cooklang-import-button, .cooklang-drawer-button, .cooklang-drawer-shade, .cooklang-sidebar, .cooklang-results-chip")
       .forEach((n) => n.remove());
     el.removeClass("cooklang-search-always", "cooklang-has-sidebar", "cooklang-drawer-open", "cooklang-switching",
       "cooklang-hide-card-heart", "cooklang-hide-card-stars");
@@ -1013,6 +1014,73 @@ export class RecipeImporter extends Component {
   }
 
   /** An "Options" button in the recipe browser's toolbar, next to Sort. */
+  /** Desktop: a "Filter" button before Options, with recipe filters in place of Bases' own. Phones get the same menu
+   *  from the Options menu, since the toolbar has no room. */
+  private addFilterButton(view: any) {
+    const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
+    if (!toolbar || Platform.isMobile || toolbar.querySelector(".cooklang-filter-menu")) return;
+    const item = createDiv({ cls: "bases-toolbar-item cooklang-filter-menu" });
+    const button = item.createDiv({ cls: "text-icon-button tappable", attr: { tabindex: "0", role: "button", "aria-label": "Filter recipes" } });
+    setIcon(button.createSpan({ cls: "text-button-icon" }), "list-filter");
+    button.createSpan({ cls: "text-button-label", text: "Filter" });
+    button.addEventListener("click", (evt) => this.openFilterMenu(view, evt));
+    toolbar.insertBefore(item, toolbar.querySelector(".cooklang-show-menu") ?? toolbar.querySelector(".bases-toolbar-sort-menu"));
+  }
+
+  /** Recipe filters: favorites, rating, time, diet, missing photo. Picking one shows those recipes in All recipes, with
+   *  a chip in the search box to clear it (the same as clicking a bar in Insights). */
+  private openFilterMenu(view: any, evt: MouseEvent) {
+    type R = { file: TFile; fm: Record<string, any>; rating: number; minutes: number | null; tags: string[] };
+    const recipes: R[] = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (fm?.recipe !== true) continue;
+      const rating = Number(fm.rating);
+      const tags = (Array.isArray(fm.tags) ? fm.tags : typeof fm.tags === "string" ? fm.tags.split(/[,\s]+/) : [])
+        .map((t: unknown) => String(t).replace(/^#/, "").trim().toLowerCase());
+      const minutes = typeof fm.time === "string" || typeof fm.time === "number" ? minutesIn(String(fm.time)) : null;
+      recipes.push({ file, fm, rating: Number.isFinite(rating) ? rating : 0, minutes, tags });
+    }
+    const name = this.resultsViewName();
+    // The filter on now, if any, from the chip in the search box.
+    const current = (view?.containerEl?.querySelector(".cooklang-results-chip") as HTMLElement | null)?.dataset.label;
+    const menu = new Menu();
+    const add = (label: string, icon: string, test: (r: R) => boolean) => {
+      const files = recipes.filter(test).map((r) => r.file);
+      menu.addItem((i) => i.setTitle(`${label}  (${files.length})`).setIcon(icon).setChecked(current === label).setDisabled(!files.length)
+        .onClick(() => void this.showResults(view?.controller, label, files)));
+    };
+    const header = (title: string) => menu.addItem((i) => i.setTitle(title).setIsLabel(true));
+    add("Favorites", "heart", (r) => r.fm.favorite === true);
+    menu.addSeparator();
+    header("Rating");
+    add("★★★★★", "star", (r) => Math.round(r.rating) === 5);
+    add("★★★★ and up", "star", (r) => r.rating >= 4);
+    add("★★★ and up", "star", (r) => r.rating >= 3);
+    add("Not rated", "star-off", (r) => !(r.rating > 0));
+    menu.addSeparator();
+    header("Time");
+    add("Under 15 min", "clock", (r) => r.minutes !== null && r.minutes > 0 && r.minutes < 15);
+    add("Under 30 min", "clock", (r) => r.minutes !== null && r.minutes > 0 && r.minutes < 30);
+    add("Under 1 hour", "clock", (r) => r.minutes !== null && r.minutes > 0 && r.minutes < 60);
+    add("1 hour or more", "clock", (r) => r.minutes !== null && r.minutes >= 60);
+    menu.addSeparator();
+    header("Diet");
+    add("Vegan", "leaf", (r) => r.tags.includes("vegan"));
+    add("Vegetarian", "carrot", (r) => r.tags.includes("vegan") || r.tags.includes("vegetarian"));
+    menu.addSeparator();
+    add("No photo", "image-off", (r) => !r.fm.photo);
+    if (current !== undefined) {
+      menu.addSeparator();
+      menu.addItem((i) => i.setTitle("Clear filter").setIcon("x").onClick(async () => {
+        this.settings.resultsLabel = "";
+        await this.saveSettings();
+        if (name) await this.setViewFilters(name, null);
+      }));
+    }
+    menu.showAtMouseEvent(evt);
+  }
+
   private addShowButton(view: any) {
     const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
     if (!toolbar || toolbar.querySelector(".cooklang-show-menu")) return;
@@ -1078,9 +1146,12 @@ export class RecipeImporter extends Component {
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
     menu.addSeparator();
     toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
-    // Phones: Sort lives here, since the toolbar has no room for it. It opens Bases' own menu.
+    // Phones: Filter and Sort live here, since the toolbar has no room for them. Sort opens Bases' own menu.
     if (Platform.isMobile) {
       menu.addSeparator();
+      menu.addItem((i) => i.setTitle("Filter").setIcon("list-filter").onClick(() => {
+        window.setTimeout(() => this.openFilterMenu(view, evt), 50);
+      }));
       for (const [title, icon, cls] of [["Sort", "arrow-up-down", "sort"]] as const) {
         menu.addItem((i) => i.setTitle(title).setIcon(icon).onClick(() => {
           const button = view?.containerEl?.querySelector(`.bases-toolbar-${cls}-menu .text-icon-button`) as HTMLElement | null;
@@ -1093,7 +1164,7 @@ export class RecipeImporter extends Component {
 
 
   onunload() {
-    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button, .cooklang-sidebar, .cooklang-filter-chip, .cooklang-results-chip").forEach((el) => el.remove());
+    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-filter-menu, .cooklang-import-button, .cooklang-sidebar, .cooklang-filter-chip, .cooklang-results-chip").forEach((el) => el.remove());
     document.querySelectorAll(".cooklang-drawer-button, .cooklang-drawer-shade").forEach((el) => el.remove());
     document.querySelectorAll(".cooklang-has-sidebar").forEach((el) => el.removeClass("cooklang-has-sidebar", "cooklang-drawer-open"));
   }
