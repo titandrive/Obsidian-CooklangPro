@@ -1208,3 +1208,42 @@ button.cook-pill.is-clickable {
 .is-mobile .cooklang-recipe-browser .dj-base-tab {
   border-radius: var(--radius-s);
 }
+
+// Recipe browser cards: tags on one compact line, smaller and muted, after a tag icon.
+.cooklang-recipe-browser .bases-cards-property[data-property="note.tags"] .bases-cards-line {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+
+  &::before {
+    content: "";
+    flex: none;
+    width: 0.95em;
+    height: 0.95em;
+    background-color: currentColor;
+    // Lucide "tag" icon.
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z'/%3E%3Ccircle cx='7.5' cy='7.5' r='.5' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z'/%3E%3Ccircle cx='7.5' cy='7.5' r='.5' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+
+  // No icon on a card without tags.
+  &:empty::before {
+    display: none;
+  }
+
+  .value-list-container {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  a.tag {
+    font-size: inherit;
+    color: inherit;
+    padding: 0;
+    background: none;
+  }
+}
