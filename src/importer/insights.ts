@@ -2,7 +2,7 @@
 // narrow it too). Modelled on the Daily Journal plugin's Trends view: sections of number tiles and cards with bar
 // lists. Reads each recipe's properties from its front matter and its ingredients from its text.
 
-import { BasesView, QueryController, TFile } from "obsidian";
+import { BasesView, Menu, QueryController, TFile, setIcon } from "obsidian";
 import { minutesIn } from "./textRecipe";
 
 export const INSIGHTS_VIEW = "recipe-insights";
@@ -94,18 +94,36 @@ export class RecipeInsightsView extends BasesView {
       let tiles: HTMLElement | null = null, grid: HTMLElement | null = null;
       return {
         el: sec,
-        tile(label: string, value: string, hint?: string) {
+        /** `icon`: a small icon before the label. `onClick`: the tile becomes a button. */
+        tile(label: string, value: string, hint?: string, icon?: string, onClick?: (evt: MouseEvent) => void) {
           tiles ??= sec.createDiv({ cls: "cooklang-insights-tiles" });
           const t = tiles.createDiv({ cls: "cooklang-insights-tile" });
           t.createDiv({ cls: "cooklang-insights-tile-value", text: value });
-          t.createDiv({ cls: "cooklang-insights-tile-label", text: label });
+          const l = t.createDiv({ cls: "cooklang-insights-tile-label" });
+          if (icon) setIcon(l.createSpan({ cls: `cooklang-insights-icon is-${icon}` }), icon);
+          l.createSpan({ text: label });
           if (hint) t.createDiv({ cls: "cooklang-insights-tile-hint", text: hint });
+          if (onClick) {
+            t.addClass("is-clickable");
+            t.setAttr("role", "button");
+            t.setAttr("tabindex", "0");
+            t.addEventListener("click", onClick);
+            t.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                const r = t.getBoundingClientRect();
+                onClick(new MouseEvent("click", { clientX: r.left, clientY: r.bottom }));
+              }
+            });
+          }
         },
-        card(title: string, note?: string) {
+        card(title: string, note?: string, icon?: string) {
           grid ??= sec.createDiv({ cls: "cooklang-insights-grid" });
           const c = grid.createDiv({ cls: "cooklang-insights-card" });
           const head = c.createDiv({ cls: "cooklang-insights-card-head" });
-          head.createDiv({ cls: "cooklang-insights-card-title", text: title });
+          const t = head.createDiv({ cls: "cooklang-insights-card-title" });
+          if (icon) setIcon(t.createSpan({ cls: `cooklang-insights-icon is-${icon}` }), icon);
+          t.createSpan({ text: title });
           if (note) head.createDiv({ cls: "cooklang-insights-card-note", text: note });
           return c;
         },
@@ -121,10 +139,19 @@ export class RecipeInsightsView extends BasesView {
     // Overview
     const overview = section("Overview");
     overview.tile("Recipes", String(recipes.length), `in ${plural(folders.size, "folder")}`);
-    overview.tile("Favorites", String(favorites.length));
+    overview.tile("Favorites", String(favorites.length), undefined, "heart");
     if (rated.length) overview.tile("Average rating", `${one(rated.reduce((s, r) => s + (r.rating ?? 0), 0) / rated.length)} ★`, `${rated.length} rated`);
     if (timed.length) overview.tile("Typical time", shortTime(median(timed.map((r) => r.minutes!))), `median of ${timed.length}`);
-    overview.tile("With photos", `${Math.round((100 * withPhoto.length) / recipes.length)}%`, `${withPhoto.length} of ${recipes.length}`);
+    // With some missing, the tile lists the recipes without a photo; pick one to open it.
+    const noPhoto = recipes.filter((r) => !r.fm.photo);
+    overview.tile("With photos", `${Math.round((100 * withPhoto.length) / recipes.length)}%`,
+      noPhoto.length ? `${noPhoto.length} missing · show` : `${withPhoto.length} of ${recipes.length}`, undefined,
+      noPhoto.length ? (evt) => {
+        const menu = new Menu();
+        menu.addItem((i) => i.setTitle(`${plural(noPhoto.length, "recipe")} without a photo`).setIsLabel(true));
+        for (const r of noPhoto) menu.addItem((i) => i.setTitle(r.file.basename).setIcon("image-off").onClick(() => this.openRecipe(r.file)));
+        menu.showAtMouseEvent(evt);
+      } : undefined);
 
     // Collection
     const collection = section("Collection");
@@ -156,7 +183,7 @@ export class RecipeInsightsView extends BasesView {
       recipeList(ratings.card("Top rated"), best.map((r) => ({ file: r.file, text: "★".repeat(Math.round(r.rating!)) })), this.openRecipe);
     }
     if (favorites.length) {
-      recipeList(ratings.card("Favorites"), favorites.map((r) => ({ file: r.file, text: r.rating ? "★".repeat(Math.round(r.rating)) : "" })), this.openRecipe);
+      recipeList(ratings.card("Favorites", undefined, "heart"), favorites.map((r) => ({ file: r.file, text: r.rating ? "★".repeat(Math.round(r.rating)) : "" })), this.openRecipe);
     }
 
     // Time

@@ -1711,3 +1711,9 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-insights-list-row > :last-child { white-space: nowrap; }
 .cooklang-insights-link { color: var(--text-normal); text-decoration: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cooklang-insights-link:hover { color: var(--text-accent); text-decoration: underline; }
+.cooklang-insights-tile-label, .cooklang-insights-card-title { display: flex; align-items: center; gap: 0.35em; }
+.cooklang-insights-icon { display: inline-flex; --icon-size: 14px; }
+.cooklang-insights-icon.is-heart { color: var(--color-red); }
+.cooklang-insights-tile.is-clickable { cursor: var(--cursor); }
+.cooklang-insights-tile.is-clickable:hover { border-color: var(--background-modifier-border-hover); background: var(--background-modifier-hover); }
+.cooklang-insights-tile.is-clickable .cooklang-insights-tile-hint { color: var(--text-accent); }
