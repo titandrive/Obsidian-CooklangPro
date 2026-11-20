@@ -1473,15 +1473,25 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   display: none;
 }
 
-// On phones Bases tucks Sort and Filter into its Display menu, which the browser hides; show them as icons.
+// On phones there's no room for Sort and Filter in the toolbar: they're in the Options menu instead, which clicks
+// these buttons. Keep them on the page (out of sight, at the toolbar's right end) so their menus have somewhere to
+// open from.
 .is-mobile .cooklang-recipe-browser {
+  .bases-toolbar { position: relative; }
+
   .bases-toolbar-sort-menu,
   .bases-toolbar-filter-menu {
     display: flex !important;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
   }
 
-  .bases-toolbar-sort-menu .text-button-label,
-  .bases-toolbar-filter-menu .text-button-label,
   .cooklang-import-button .text-button-label {
     display: none;
   }
@@ -1717,3 +1727,9 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-insights-tile.is-clickable { cursor: var(--cursor); }
 .cooklang-insights-tile.is-clickable:hover { border-color: var(--background-modifier-border-hover); background: var(--background-modifier-hover); }
 .cooklang-insights-tile.is-clickable .cooklang-insights-tile-hint { color: var(--text-accent); }
+
+// The phone's drawer button holds its place on views without a drawer, so the other buttons stay put.
+.cooklang-drawer-button.is-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}

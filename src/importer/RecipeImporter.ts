@@ -713,11 +713,17 @@ export class RecipeImporter extends Component {
     if (!toolbar || !content) return;
     let item = toolbar.querySelector<HTMLElement>(".cooklang-drawer-button");
     let shade = content.querySelector<HTMLElement>(":scope > .cooklang-drawer-shade");
-    if (!Platform.isMobile || !kind) {
+    if (!Platform.isMobile) {
       item?.remove();
       shade?.remove();
       root.removeClass("cooklang-drawer-open");
       return;
+    }
+    // The button keeps its place on every view (invisible where there's no drawer), so the buttons after it
+    // don't shift when switching views.
+    if (!kind) {
+      shade?.remove();
+      root.removeClass("cooklang-drawer-open");
     }
     const label = kind === "tag" ? "Tags" : "Folders";
     if (!item) {
@@ -734,7 +740,9 @@ export class RecipeImporter extends Component {
       });
       toolbar.prepend(item);
     }
+    item.toggleClass("is-placeholder", !kind);
     item.firstElementChild?.setAttr("aria-label", `Show ${label.toLowerCase()}`);
+    if (!kind) return;
     if (!shade) {
       shade = createDiv({ cls: "cooklang-drawer-shade" });
       shade.addEventListener("click", () => root.removeClass("cooklang-drawer-open"));
@@ -917,6 +925,16 @@ export class RecipeImporter extends Component {
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
     menu.addSeparator();
     toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
+    // Phones: Sort and Filter live here, since the toolbar has no room for them. They open Bases' own menus.
+    if (Platform.isMobile) {
+      menu.addSeparator();
+      for (const [title, icon, cls] of [["Sort", "arrow-up-down", "sort"], ["Filter", "list-filter", "filter"]] as const) {
+        menu.addItem((i) => i.setTitle(title).setIcon(icon).onClick(() => {
+          const button = view?.containerEl?.querySelector(`.bases-toolbar-${cls}-menu .text-icon-button`) as HTMLElement | null;
+          window.setTimeout(() => button?.click(), 50);
+        }));
+      }
+    }
     menu.showAtMouseEvent(evt);
   }
 
