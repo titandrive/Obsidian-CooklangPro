@@ -1035,11 +1035,10 @@ export class RecipeImporter extends Component {
   }
 
   /** An "Options" button in the recipe browser's toolbar, next to Sort. */
-  /** Desktop: a "Filter" button before Options, with recipe filters in place of Bases' own. Phones get the same menu
-   *  from the Options menu, since the toolbar has no room. */
+  /** A "Filter" button before Options, with recipe filters in place of Bases' own (icon only on phones). */
   private addFilterButton(view: any) {
     const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
-    if (!toolbar || Platform.isMobile || toolbar.querySelector(".cooklang-filter-menu")) return;
+    if (!toolbar || toolbar.querySelector(".cooklang-filter-menu")) return;
     const item = createDiv({ cls: "bases-toolbar-item cooklang-filter-menu" });
     const button = item.createDiv({ cls: "text-icon-button tappable", attr: { tabindex: "0", role: "button", "aria-label": "Filter recipes" } });
     setIcon(button.createSpan({ cls: "text-button-icon" }), "list-filter");
@@ -1169,12 +1168,9 @@ export class RecipeImporter extends Component {
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
     menu.addSeparator();
     toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
-    // Phones: Filter and Sort live here, since the toolbar has no room for them. Sort opens Bases' own menu.
+    // Phones: Sort lives here, since the toolbar has no room for it. It opens Bases' own menu.
     if (Platform.isMobile) {
       menu.addSeparator();
-      menu.addItem((i) => i.setTitle("Filter").setIcon("list-filter").onClick(() => {
-        window.setTimeout(() => this.openFilterMenu(view, evt), 50);
-      }));
       for (const [title, icon, cls] of [["Sort", "arrow-up-down", "sort"]] as const) {
         menu.addItem((i) => i.setTitle(title).setIcon(icon).onClick(() => {
           const button = view?.containerEl?.querySelector(`.bases-toolbar-${cls}-menu .text-icon-button`) as HTMLElement | null;

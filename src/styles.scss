@@ -1492,14 +1492,15 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
     pointer-events: none;
   }
 
-  .cooklang-import-button .text-button-label {
+  .cooklang-import-button .text-button-label,
+  .cooklang-filter-menu .text-button-label {
     display: none;
   }
 }
 
 // When tapped on a phone, Obsidian's pressed style fades the icon of these buttons almost into the background, so
 // the button seemed to vanish. Keep the icon as it is and show a light highlight instead.
-.cooklang-recipe-browser :is(.cooklang-import-button, .cooklang-show-menu, .cooklang-drawer-button) .text-icon-button {
+.cooklang-recipe-browser :is(.cooklang-import-button, .cooklang-show-menu, .cooklang-filter-menu, .cooklang-drawer-button) .text-icon-button {
   &:hover,
   &:active,
   &.has-active-menu {
