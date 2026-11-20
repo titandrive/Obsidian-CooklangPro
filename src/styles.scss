@@ -1376,47 +1376,26 @@ button.cook-pill.is-clickable {
   }
 }
 
-// An always-open search box on the recipe browser's card views (Bases hides it behind its Search button).
-.cooklang-recipe-browser.cooklang-search-always {
-  .bases-search-row {
-    display: flex !important;
-  }
+// The always-on search box sits in the recipe browser's toolbar on card views (Bases hides it behind its Search
+// button, in a row of its own).
+.cooklang-recipe-browser.cooklang-search-always .bases-toolbar-search {
+  display: none;
+}
 
-  // The clear (x) button inside the box, at its right end, with the result count just before it.
-  .bases-search-row .search-input-container {
+.cooklang-recipe-browser .cooklang-search-item {
+  flex: 0 1 220px;
+  min-width: 110px;
+  margin-left: auto;
+
+  .search-input-container {
     position: relative;
-  }
-
-  .bases-search-row .search-input-clear-button {
-    position: absolute;
-    right: 6px;
-    top: 50%;
-    transform: translateY(-50%);
-    margin: 0;
-  }
-
-  .bases-search-row .document-search-count {
-    right: 34px;
-  }
-
-  .bases-search-row input {
-    padding-right: 7.5em;
-  }
-
-  // A centred, rounded field rather than a full-width bar.
-  .bases-search-row {
-    justify-content: center;
-    padding: var(--size-4-2) var(--size-4-3);
-    border-bottom: none;
-  }
-
-  .bases-search-row .search-input-container {
     width: 100%;
-    max-width: 460px;
   }
 
-  .bases-search-row input {
-    height: 34px;
+  input {
+    height: 28px;
+    width: 100%;
+    padding-right: 4.5em;
     border-radius: 999px;
     border: 1px solid var(--background-modifier-border);
     background-color: var(--background-modifier-form-field);
@@ -1430,16 +1409,23 @@ button.cook-pill.is-clickable {
     }
   }
 
-  .bases-search-row .search-input-container::before {
-    left: 12px;
+  // The clear (x) button inside the box, at its right end, with the result count just before it.
+  .search-input-clear-button {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
   }
 
-  .bases-search-row .document-search-count {
+  .document-search-count {
+    right: 28px;
     color: var(--text-faint);
     font-size: var(--font-ui-smaller);
   }
 
-  .bases-toolbar-search {
+  // The count only matters once something is typed.
+  input:placeholder-shown ~ .document-search-count {
     display: none;
   }
 }

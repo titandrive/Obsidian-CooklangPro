@@ -293,8 +293,10 @@ export class RecipeImporter extends Component {
     this.renderFolderBadges(view, show.folder);
     // Bases' own search row stays open on card views, so searching is one tap; the table keeps the Search button.
     const cards = view?.controller?.view?.type !== "table";
-    el.toggleClass("cooklang-search-always", cards && this.settings.searchBar);
-    const search = el.querySelector<HTMLInputElement>(".bases-search-row input");
+    const searchOn = cards && this.settings.searchBar;
+    el.toggleClass("cooklang-search-always", searchOn);
+    this.placeSearchBox(el, searchOn);
+    const search = el.querySelector<HTMLInputElement>(".bases-search-row input, .cooklang-search-item input");
     if (search && !search.dataset.cooklangSearch) {
       // Bases only listens while its own search is open; pass what's typed (and cleared) straight to the view.
       search.dataset.cooklangSearch = "1";
@@ -344,6 +346,28 @@ export class RecipeImporter extends Component {
       badge.dataset.folder = name;
       setIcon(badge.createSpan({ cls: "cooklang-card-folder-icon" }), "folder");
       badge.createSpan({ text: name });
+    }
+  }
+
+  /**
+   * Moves Bases' search box into the toolbar (before Options) while the always-on search is wanted, and back
+   * into its own row otherwise, where Bases' Search button opens it as usual.
+   */
+  private placeSearchBox(el: HTMLElement, inToolbar: boolean) {
+    const toolbar = el.querySelector<HTMLElement>(".bases-toolbar");
+    const row = el.querySelector<HTMLElement>(".bases-search-row");
+    if (!toolbar || !row) return;
+    let item = toolbar.querySelector<HTMLElement>(".cooklang-search-item");
+    const box = (item ?? row).querySelector<HTMLElement>(".search-input-container");
+    if (inToolbar) {
+      if (!item) {
+        item = createDiv({ cls: "bases-toolbar-item cooklang-search-item" });
+        toolbar.insertBefore(item, toolbar.querySelector(".cooklang-show-menu") ?? toolbar.querySelector(".bases-toolbar-sort-menu"));
+      }
+      if (box && box.parentElement !== item) item.appendChild(box);
+    } else if (item) {
+      if (box) row.appendChild(box);
+      item.remove();
     }
   }
 
