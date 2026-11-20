@@ -1382,6 +1382,11 @@ button.cook-pill.is-clickable {
   display: none;
 }
 
+// Bases' own search row is left empty once its box is in the toolbar; keep it closed (Ctrl+F would open it).
+.cooklang-recipe-browser.cooklang-search-always .bases-search-row {
+  display: none !important;
+}
+
 .cooklang-recipe-browser .cooklang-search-item {
   flex: 1 1 auto;
   min-width: 110px;

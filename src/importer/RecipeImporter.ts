@@ -224,6 +224,12 @@ export class RecipeImporter extends Component {
       name: "Open recipe browser",
       callback: () => void this.openRecipeBrowser(),
     });
+    // Give this a hotkey to jump to the browser's search from anywhere.
+    this.host.addCommand({
+      id: "search-recipes",
+      name: "Search recipes",
+      callback: () => void this.searchRecipes(),
+    });
     // Clickable heart and stars on the recipe browser's cards and table rows. Obsidian draws those, so
     // they're added to its views; the recipe view has them built in (ui/components/RecipeMarks.svelte).
     this.registerEvent(this.app.workspace.on("layout-change", () => this.watchBrowsers()));
@@ -291,6 +297,13 @@ export class RecipeImporter extends Component {
     // Bases' search box lives in the toolbar, always open, so searching is one tap in every view.
     el.toggleClass("cooklang-search-always", true);
     this.placeSearchBox(el, true);
+    // When a browser first opens on desktop, the search box is ready to type in. Not on phones: the keyboard
+    // would cover the recipes.
+    if (!this.searchFocused.has(view) && !Platform.isMobile) {
+      this.searchFocused.add(view);
+      const input = el.querySelector<HTMLInputElement>(".cooklang-search-item input");
+      if (input && this.app.workspace.getMostRecentLeaf()?.view === view) window.setTimeout(() => input.focus(), 0);
+    }
     const search = el.querySelector<HTMLInputElement>(".bases-search-row input, .cooklang-search-item input");
     if (search && !search.dataset.cooklangSearch) {
       // Bases only listens while its own search is open; pass what's typed (and cleared) straight to the view.
@@ -366,6 +379,7 @@ export class RecipeImporter extends Component {
     }
   }
 
+  private searchFocused = new WeakSet<object>();
   private newTabViews = new WeakSet<object>();
   private hapticViews = new WeakMap<object, string>();
   private folderPickerViews = new WeakSet<object>();
@@ -948,6 +962,28 @@ export class RecipeImporter extends Component {
       new Notice("Created the recipe browser.");
     }
     await this.app.workspace.getLeaf(false).openFile(file as TFile);
+  }
+
+  /** Shows the recipe browser (an open one, or a new one) with its search box ready to type in. */
+  async searchRecipes() {
+    let leaf = this.app.workspace.getLeavesOfType("bases").find((l: any) => l.view?.file?.path === this.browserPath());
+    if (leaf) this.app.workspace.revealLeaf(leaf);
+    else {
+      await this.openRecipeBrowser();
+      leaf = this.app.workspace.getLeavesOfType("bases").find((l: any) => l.view?.file?.path === this.browserPath());
+    }
+    if (!leaf) return;
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
+    // The box moves into the toolbar once the browser has drawn; try for a moment.
+    for (let i = 0; i < 20; i++) {
+      const input = leaf.view.containerEl.querySelector<HTMLInputElement>(".cooklang-search-item input");
+      if (input) {
+        input.focus();
+        input.select();
+        return;
+      }
+      await new Promise((r) => window.setTimeout(r, 50));
+    }
   }
 
   async open(file: TFile) {
