@@ -1660,3 +1660,19 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   opacity: 0;
   transition: none;
 }
+
+// Shorter recipe cards: Bases spaces every line on a card by this height (24px by default), so lower it.
+.cooklang-recipe-browser {
+  --bases-cards-line-height: 20px;
+
+  // The title keeps its full height, spilling a few pixels into the gap below so descenders aren't cut.
+  .bases-cards-property[data-property="file.name"] {
+    overflow: visible;
+
+    .bases-cards-line {
+      line-height: 24px;
+      height: 24px;
+      margin-top: -2px;
+    }
+  }
+}
