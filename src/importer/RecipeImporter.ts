@@ -365,11 +365,14 @@ export class RecipeImporter extends Component {
     const toolbar = el.querySelector<HTMLElement>(".bases-toolbar");
     const row = el.querySelector<HTMLElement>(".bases-search-row");
     if (!toolbar || !row) return;
-    let item = toolbar.querySelector<HTMLElement>(".cooklang-search-item");
+    let item = el.querySelector<HTMLElement>(".cooklang-search-item");
     const box = (item ?? row).querySelector<HTMLElement>(".search-input-container");
     if (inToolbar) {
-      if (!item) {
-        item = createDiv({ cls: "bases-toolbar-item cooklang-search-item" });
+      if (!item) item = createDiv({ cls: "bases-toolbar-item cooklang-search-item" });
+      // On phones the toolbar is too narrow: the box gets its own line under it, in Bases' search row.
+      if (Platform.isMobile) {
+        if (item.parentElement !== row) row.appendChild(item);
+      } else if (item.parentElement !== toolbar) {
         toolbar.insertBefore(item, toolbar.querySelector(".cooklang-show-menu") ?? toolbar.querySelector(".bases-toolbar-sort-menu"));
       }
       if (box && box.parentElement !== item) item.appendChild(box);

@@ -1383,8 +1383,23 @@ button.cook-pill.is-clickable {
 }
 
 // Bases' own search row is left empty once its box is in the toolbar; keep it closed (Ctrl+F would open it).
-.cooklang-recipe-browser.cooklang-search-always .bases-search-row {
+// On phones the box sits in that row instead, on its own line under the toolbar.
+body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-search-row {
   display: none !important;
+}
+
+.is-mobile .cooklang-recipe-browser.cooklang-search-always .bases-search-row {
+  display: flex !important;
+  padding: var(--size-4-1) var(--size-4-3) var(--size-4-2);
+  border-bottom: none;
+
+  .cooklang-search-item {
+    flex: 1 1 100%;
+  }
+
+  input {
+    height: 36px;
+  }
 }
 
 .cooklang-recipe-browser .cooklang-search-item {
