@@ -1745,3 +1745,29 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-insights-bar-row.is-clickable > * { cursor: var(--cursor); }
 .cooklang-insights-bar-row.is-clickable:hover > .cooklang-insights-bar-label { color: var(--text-accent); text-decoration: underline; }
 .cooklang-insights-bar-row.is-clickable:hover .cooklang-insights-bar-fill { background: var(--interactive-accent-hover); }
+
+// All recipes narrowed from Insights: a chip saying what it shows; tap it to show everything again.
+.cooklang-results-chip-button {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.1em 0.55em;
+  margin-left: var(--size-4-2);
+  border-radius: var(--radius-l);
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: var(--cursor);
+
+  &:hover { background-color: var(--interactive-accent-hover); }
+}
+
+.cooklang-results-chip-x {
+  display: inline-flex;
+  --icon-size: 12px;
+  --icon-stroke: 2.5px;
+}

@@ -2,7 +2,7 @@
 // narrow it too). Modelled on the Daily Journal plugin's Trends view: sections of number tiles and cards with bar
 // lists. Reads each recipe's properties from its front matter and its ingredients from its text.
 
-import { BasesView, Menu, QueryController, TFile, setIcon } from "obsidian";
+import { BasesView, QueryController, TFile, setIcon } from "obsidian";
 import { minutesIn } from "./textRecipe";
 
 export const INSIGHTS_VIEW = "recipe-insights";
@@ -16,6 +16,8 @@ interface Row { label: string; value: number; text: string; hint?: string; files
 export interface InsightActions {
   open(file: TFile): void;
   show(kind: "folder" | "tag", value: string): void;
+  /** Narrow the All recipes view to these recipes, labelled (for the toolbar chip) with `label`. */
+  filter(label: string, files: TFile[]): void;
   view(name: string): void;
 }
 
@@ -154,21 +156,16 @@ export class RecipeInsightsView extends BasesView {
     const noPhoto = recipes.filter((r) => !r.fm.photo);
     overview.tile("With photos", `${Math.round((100 * withPhoto.length) / recipes.length)}%`,
       noPhoto.length ? `${noPhoto.length} missing · show` : `${withPhoto.length} of ${recipes.length}`, undefined,
-      noPhoto.length ? (evt) => {
-        const menu = new Menu();
-        menu.addItem((i) => i.setTitle(`${plural(noPhoto.length, "recipe")} without a photo`).setIsLabel(true));
-        for (const r of noPhoto) menu.addItem((i) => i.setTitle(r.file.basename).setIcon("image-off").onClick(() => this.actions.open(r.file)));
-        menu.showAtMouseEvent(evt);
-      } : undefined);
+      noPhoto.length ? () => this.actions.filter("No photo", noPhoto.map((r) => r.file)) : undefined);
 
     // Collection
     const collection = section("Collection");
     // Folders and tags open their browser view with that folder or tag picked.
     const byFolder = rankedRecipes(recipes, (r) => [r.file.parent?.path ?? ""], 20)
       .map((row) => ({ ...row, label: row.label.split("/").pop() ?? row.label, pick: () => this.actions.show("folder", row.label) }));
-    if (byFolder.length > 1) this.bars(collection.card("By folder"), byFolder, "");
+    if (byFolder.length > 1) this.bars(collection.card("By folder"), byFolder);
     const topTags = rankedRecipes(recipes, (r) => r.tags, 10).map((row) => ({ ...row, pick: () => this.actions.show("tag", row.label) }));
-    if (topTags.length) this.bars(collection.card("Top tags"), topTags, "");
+    if (topTags.length) this.bars(collection.card("Top tags"), topTags);
     const vegan = recipes.filter((r) => r.tags.includes("vegan"));
     const vegetarian = recipes.filter((r) => !r.tags.includes("vegan") && r.tags.includes("vegetarian"));
     if (vegan.length || vegetarian.length) {
@@ -178,7 +175,7 @@ export class RecipeInsightsView extends BasesView {
         { label: "Vegan", value: vegan.length, text: pct(vegan.length), pick: () => this.actions.show("tag", "vegan") },
         { label: "Vegetarian", value: vegetarian.length, text: pct(vegetarian.length), pick: () => this.actions.show("tag", "vegetarian") },
         { label: "Other", value: other.length, text: pct(other.length), files: other.map((r) => r.file) },
-      ], "Neither vegan nor vegetarian");
+      ], () => "Not vegan or vegetarian");
     }
 
     // Ratings
@@ -190,7 +187,7 @@ export class RecipeInsightsView extends BasesView {
       });
       const unrated = recipes.filter((r) => !(r.rating !== null && r.rating > 0)).map((r) => r.file);
       stars.push({ label: "Not rated", value: unrated.length, text: String(unrated.length), files: unrated });
-      this.bars(ratings.card("Ratings"), stars, "Rated");
+      this.bars(ratings.card("Ratings"), stars);
       const best = [...rated].sort((a, b) => b.rating! - a.rating! || a.file.basename.localeCompare(b.file.basename)).slice(0, 6);
       recipeList(ratings.card("Top rated"), best.map((r) => ({ file: r.file, text: "★".repeat(Math.round(r.rating!)) })), this.actions.open);
     }
@@ -208,7 +205,7 @@ export class RecipeInsightsView extends BasesView {
         const files = band(lo, hi);
         return { label, value: files.length, text: String(files.length), files };
       });
-      this.bars(time.card("Cooking time", `${timed.length} recipes with a time`), bands, "Cooking time");
+      this.bars(time.card("Cooking time", `${timed.length} recipes with a time`), bands);
       const quickest = [...timed].sort((a, b) => a.minutes! - b.minutes! || a.file.basename.localeCompare(b.file.basename)).slice(0, 6);
       recipeList(time.card("Quickest"), quickest.map((r) => ({ file: r.file, text: shortTime(r.minutes!) })), this.actions.open);
     }
@@ -221,7 +218,7 @@ export class RecipeInsightsView extends BasesView {
       ingredients.tile("Typical ingredient count", String(Math.round(median(counts))), "per recipe");
       ingredients.tile("Different ingredients", String(new Set(recipes.flatMap((r) => r.ingredients)).size));
     }
-    if (common.length) this.bars(ingredients.card("Most used", "Recipes using each"), common, "Recipes with");
+    if (common.length) this.bars(ingredients.card("Most used", "Recipes using each"), common);
     if (counts.length) {
       const fewest = [...recipes].filter((r) => r.ingredients.length).sort((a, b) => a.ingredients.length - b.ingredients.length).slice(0, 6);
       recipeList(ingredients.card("Fewest ingredients"), fewest.map((r) => ({ file: r.file, text: plural(r.ingredients.length, "ingredient") })), this.actions.open);
@@ -241,7 +238,7 @@ export class RecipeInsightsView extends BasesView {
     if (topSites.length) {
       sources.tile("Websites", String(new Set(sites.filter(Boolean)).size), `${sites.filter(Boolean).length} recipes with a link`);
       sources.tile("Without a link", String(sites.filter((s) => !s).length));
-      this.bars(sources.card("Top sources"), topSites, "From");
+      this.bars(sources.card("Top sources"), topSites);
     }
 
     for (const s of [overview, collection, ratings, time, ingredients, sources]) {
@@ -249,23 +246,20 @@ export class RecipeInsightsView extends BasesView {
     }
   }
 
-  /** Bars that can be clicked: a row's `pick`, or a list of its recipes (titled `title` + the row's label). */
-  private bars(el: HTMLElement, rows: Row[], title: string): void {
-    barList(el, rows, (row, evt) => {
+  /**
+   * Bars that can be clicked: a row's `pick`, or else All recipes narrowed to the row's recipes. `label` turns a
+   * row into the filter's name ("garlic", "★★★", "Under 15 min"); by default it's the row's own label.
+   */
+  private bars(el: HTMLElement, rows: Row[], label: (row: Row) => string = (row) => row.label): void {
+    barList(el, rows, (row) => {
       if (row.pick) return row.pick();
-      if (!row.files?.length) return;
-      const menu = new Menu();
-      menu.addItem((i) => i.setTitle(`${title ? `${title} ${row.label}` : row.label} · ${plural(row.files!.length, "recipe")}`).setIsLabel(true));
-      for (const f of [...row.files].sort((a, b) => a.basename.localeCompare(b.basename))) {
-        menu.addItem((i) => i.setTitle(f.basename).setIcon("chef-hat").onClick(() => this.actions.open(f)));
-      }
-      menu.showAtMouseEvent(evt);
+      if (row.files?.length) this.actions.filter(label(row), row.files);
     });
   }
 }
 
 /** Labelled horizontal bars; the largest value fills the track. Rows with something to show are clickable. */
-function barList(el: HTMLElement, rows: Row[], onClick?: (row: Row, evt: MouseEvent) => void): void {
+function barList(el: HTMLElement, rows: Row[], onClick?: (row: Row) => void): void {
   const top = Math.max(1, ...rows.map((r) => r.value));
   const list = el.createDiv({ cls: "cooklang-insights-bars" });
   for (const r of rows) {
@@ -276,7 +270,7 @@ function barList(el: HTMLElement, rows: Row[], onClick?: (row: Row, evt: MouseEv
     row.createDiv({ cls: "cooklang-insights-bar-value", text: r.text });
     if (clickable) {
       for (const cell of Array.from(row.children) as HTMLElement[]) {
-        cell.addEventListener("click", (evt) => onClick!(r, evt));
+        cell.addEventListener("click", () => onClick!(r));
       }
     }
   }

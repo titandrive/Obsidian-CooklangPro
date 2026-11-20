@@ -30,6 +30,8 @@ export interface ImporterSettings {
   tagViewUngrouped: boolean;
   /** The Insights view was added to an existing recipe browser (done once, so deleting it sticks). */
   insightsViewAdded: boolean;
+  /** What the All recipes view is narrowed to after a click in Insights ("garlic", "★★★"), for its toolbar chip. */
+  resultsLabel: string;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -46,6 +48,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   tagViewAdded: false,
   tagViewUngrouped: false,
   insightsViewAdded: false,
+  resultsLabel: "",
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -221,6 +224,7 @@ export class RecipeImporter extends Component {
         view: (name) => {
           if ((controller?.getQueryViewNames?.() ?? []).includes(name)) controller.selectView(name);
         },
+        filter: (label, files) => void this.showResults(controller, label, files),
       }),
     });
     // Keep the parsed browser base current, for the folder picker.
@@ -328,6 +332,7 @@ export class RecipeImporter extends Component {
       void this.ensureTagView().then(() => this.ungroupTagView()).then(() => this.ensureInsightsView()).then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
     }
     this.renderSidebar(view);
+    this.resultsChip(view);
     const show = this.settings.cardShow;
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
@@ -406,10 +411,10 @@ export class RecipeImporter extends Component {
    * Import, the drawer button, the sidebar, the moved search box) so that base looks as it normally does.
    */
   private clearBrowserExtras(el: HTMLElement) {
-    if (!el.querySelector(".cooklang-show-menu, .cooklang-import-button, .cooklang-search-item, .cooklang-drawer-button, .cooklang-sidebar")
+    if (!el.querySelector(".cooklang-show-menu, .cooklang-import-button, .cooklang-search-item, .cooklang-drawer-button, .cooklang-sidebar, .cooklang-results-chip")
       && !el.hasClass("cooklang-search-always")) return;
     this.placeSearchBox(el, false);
-    el.querySelectorAll(".cooklang-show-menu, .cooklang-import-button, .cooklang-drawer-button, .cooklang-drawer-shade, .cooklang-sidebar")
+    el.querySelectorAll(".cooklang-show-menu, .cooklang-import-button, .cooklang-drawer-button, .cooklang-drawer-shade, .cooklang-sidebar, .cooklang-results-chip")
       .forEach((n) => n.remove());
     el.removeClass("cooklang-search-always", "cooklang-has-sidebar", "cooklang-drawer-open", "cooklang-switching",
       "cooklang-hide-card-heart", "cooklang-hide-card-stars");
@@ -591,6 +596,62 @@ export class RecipeImporter extends Component {
     if (!values.length) return null;
     const set = new Set(values);
     return options.every((o) => set.has(o.value)) ? null : set;
+  }
+
+  /** The view that shows narrowed results from Insights: All recipes (else the first plain cards view). */
+  private resultsViewName(): string | null {
+    const views: any[] = this.browserBase()?.views ?? [];
+    const v = views.find((x) => x?.name === "All recipes") ?? views.find((x) => x?.type === "cards" && !x?.groupBy);
+    return v ? String(v.name) : null;
+  }
+
+  /** Narrows the results view to these recipes and switches to it; its toolbar chip says what it shows. */
+  private async showResults(controller: any, label: string, files: TFile[]) {
+    const name = this.resultsViewName();
+    if (!name || !files.length) return;
+    const list = JSON.stringify(files.map((f) => f.path));
+    this.settings.resultsLabel = label;
+    await this.saveSettings();
+    await this.setViewFilters(name, { and: [`${list}.contains(file.path)`] });
+    controller?.selectView?.(name);
+  }
+
+  /** On the results view while it's narrowed: a chip with what it shows ("garlic ×"); tap it to show everything. */
+  private resultsChip(view: any) {
+    const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
+    if (!toolbar) return;
+    const name = this.resultsViewName();
+    const current = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
+    const spec = this.browserBase()?.views?.find((v: any) => v?.name === name);
+    const narrowed = !!name && current === name && JSON.stringify(spec?.filters ?? "").includes(".contains(file.path)");
+    let chip = toolbar.querySelector<HTMLElement>(".cooklang-results-chip");
+    if (!narrowed) {
+      chip?.remove();
+      return;
+    }
+    const label = this.settings.resultsLabel || "Filtered";
+    if (chip?.dataset.label === label) return;
+    chip?.remove();
+    chip = createDiv({ cls: "bases-toolbar-item cooklang-results-chip" });
+    chip.dataset.label = label;
+    const button = chip.createDiv({ cls: "cooklang-results-chip-button", attr: { role: "button", tabindex: "0", "aria-label": `Showing ${label}. Click to show all recipes.` } });
+    button.createSpan({ text: label });
+    setIcon(button.createSpan({ cls: "cooklang-results-chip-x" }), "x");
+    const clear = async () => {
+      this.settings.resultsLabel = "";
+      await this.saveSettings();
+      await this.setViewFilters(name!, null);
+    };
+    button.addEventListener("click", () => void clear());
+    button.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        void clear();
+      }
+    });
+    const after = toolbar.querySelector(".dj-base-tabs") ?? toolbar.querySelector(".bases-toolbar-views-menu");
+    if (after) after.after(chip);
+    else toolbar.prepend(chip);
   }
 
   /** Saves which folders or tags a view shows, as its filter: none for all, "false" for none, else any of them. */
@@ -973,7 +1034,7 @@ export class RecipeImporter extends Component {
 
 
   onunload() {
-    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button, .cooklang-sidebar, .cooklang-filter-chip").forEach((el) => el.remove());
+    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button, .cooklang-sidebar, .cooklang-filter-chip, .cooklang-results-chip").forEach((el) => el.remove());
     document.querySelectorAll(".cooklang-drawer-button, .cooklang-drawer-shade").forEach((el) => el.remove());
     document.querySelectorAll(".cooklang-has-sidebar").forEach((el) => el.removeClass("cooklang-has-sidebar", "cooklang-drawer-open"));
   }
