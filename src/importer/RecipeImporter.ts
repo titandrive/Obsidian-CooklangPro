@@ -207,9 +207,20 @@ export class RecipeImporter extends Component {
     (this.host as any).registerBasesView?.(INSIGHTS_VIEW, {
       name: "Insights",
       icon: "chart-bar",
-      factory: (controller: any, containerEl: HTMLElement) => new RecipeInsightsView(controller, containerEl, (file) => {
-        const leaf = this.settings.browserNewTab ? this.app.workspace.getLeaf("tab") : this.app.workspace.getLeaf(false);
-        void this.host.openAsRecipe(leaf, file);
+      factory: (controller: any, containerEl: HTMLElement) => new RecipeInsightsView(controller, containerEl, {
+        open: (file) => {
+          const leaf = this.settings.browserNewTab ? this.app.workspace.getLeaf("tab") : this.app.workspace.getLeaf(false);
+          void this.host.openAsRecipe(leaf, file);
+        },
+        // A folder or tag: its browser view (By folder / By tag) with just that one picked.
+        show: (kind, value) => {
+          const name = [...this.pickerViews()].find(([, k]) => k === kind)?.[0];
+          if (!name) return;
+          void this.applySelection({ controller }, name, kind, this.pickerOptions(kind), new Set([value]));
+        },
+        view: (name) => {
+          if ((controller?.getQueryViewNames?.() ?? []).includes(name)) controller.selectView(name);
+        },
       }),
     });
     // Keep the parsed browser base current, for the folder picker.

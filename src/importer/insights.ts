@@ -9,7 +9,15 @@ export const INSIGHTS_VIEW = "recipe-insights";
 
 type Frontmatter = Record<string, unknown>;
 interface Recipe { file: TFile; fm: Frontmatter; minutes: number | null; rating: number | null; tags: string[]; ingredients: string[] }
-interface Row { label: string; value: number; text: string; hint?: string; file?: TFile }
+/** A bar. Clicking it runs `pick`, or else lists `files` to open one. */
+interface Row { label: string; value: number; text: string; hint?: string; files?: TFile[]; pick?: () => void }
+
+/** What a click in the view can do: open a recipe, show a folder or tag in its browser view, or switch views. */
+export interface InsightActions {
+  open(file: TFile): void;
+  show(kind: "folder" | "tag", value: string): void;
+  view(name: string): void;
+}
 
 const num = (v: unknown): number | null => {
   const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
@@ -38,18 +46,18 @@ export function ingredientNames(body: string): string[] {
   return [...names];
 }
 
-/** Values counted, most frequent first. */
-function ranked(values: string[], limit: number): Row[] {
-  const counts = new Map<string, number>();
-  for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
-  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit)
-    .map(([label, n]) => ({ label, value: n, text: String(n) }));
+/** Recipes grouped by each value `keys` gives them, biggest group first, with each group's recipes. */
+function rankedRecipes(recipes: Recipe[], keys: (r: Recipe) => string[], limit: number): Row[] {
+  const groups = new Map<string, TFile[]>();
+  for (const r of recipes) for (const k of new Set(keys(r))) if (k) groups.set(k, [...(groups.get(k) ?? []), r.file]);
+  return [...groups].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0])).slice(0, limit)
+    .map(([label, files]) => ({ label, value: files.length, text: String(files.length), files }));
 }
 
 export class RecipeInsightsView extends BasesView {
   type = INSIGHTS_VIEW;
 
-  constructor(controller: QueryController, private el: HTMLElement, private openRecipe: (file: TFile) => void) {
+  constructor(controller: QueryController, private el: HTMLElement, private actions: InsightActions) {
     super(controller);
     el.addClass("cooklang-insights-host");
   }
@@ -138,9 +146,9 @@ export class RecipeInsightsView extends BasesView {
 
     // Overview
     const overview = section("Overview");
-    overview.tile("Recipes", String(recipes.length), `in ${plural(folders.size, "folder")}`);
-    overview.tile("Favorites", String(favorites.length), undefined, "heart");
-    if (rated.length) overview.tile("Average rating", `${one(rated.reduce((s, r) => s + (r.rating ?? 0), 0) / rated.length)} ★`, `${rated.length} rated`);
+    overview.tile("Recipes", String(recipes.length), `in ${plural(folders.size, "folder")}`, undefined, () => this.actions.view("All recipes"));
+    overview.tile("Favorites", String(favorites.length), undefined, "heart", () => this.actions.view("Favorites"));
+    if (rated.length) overview.tile("Average rating", `${one(rated.reduce((s, r) => s + (r.rating ?? 0), 0) / rated.length)} ★`, `${rated.length} rated`, undefined, () => this.actions.view("Top rated"));
     if (timed.length) overview.tile("Typical time", shortTime(median(timed.map((r) => r.minutes!))), `median of ${timed.length}`);
     // With some missing, the tile lists the recipes without a photo; pick one to open it.
     const noPhoto = recipes.filter((r) => !r.fm.photo);
@@ -149,100 +157,128 @@ export class RecipeInsightsView extends BasesView {
       noPhoto.length ? (evt) => {
         const menu = new Menu();
         menu.addItem((i) => i.setTitle(`${plural(noPhoto.length, "recipe")} without a photo`).setIsLabel(true));
-        for (const r of noPhoto) menu.addItem((i) => i.setTitle(r.file.basename).setIcon("image-off").onClick(() => this.openRecipe(r.file)));
+        for (const r of noPhoto) menu.addItem((i) => i.setTitle(r.file.basename).setIcon("image-off").onClick(() => this.actions.open(r.file)));
         menu.showAtMouseEvent(evt);
       } : undefined);
 
     // Collection
     const collection = section("Collection");
-    const byFolder = ranked(recipes.map((r) => r.file.parent?.name ?? ""), 20);
-    if (byFolder.length > 1) barList(collection.card("By folder"), byFolder);
-    const topTags = ranked(recipes.flatMap((r) => r.tags), 10);
-    if (topTags.length) barList(collection.card("Top tags"), topTags);
-    const vegan = recipes.filter((r) => r.tags.includes("vegan")).length;
-    const vegetarian = recipes.filter((r) => !r.tags.includes("vegan") && r.tags.includes("vegetarian")).length;
-    if (vegan || vegetarian) {
-      const other = recipes.length - vegan - vegetarian;
-      barList(collection.card("Diet", "From tags"), [
-        { label: "Vegan", value: vegan, text: `${vegan} · ${Math.round((100 * vegan) / recipes.length)}%` },
-        { label: "Vegetarian", value: vegetarian, text: `${vegetarian} · ${Math.round((100 * vegetarian) / recipes.length)}%` },
-        { label: "Other", value: other, text: `${other} · ${Math.round((100 * other) / recipes.length)}%` },
-      ]);
+    // Folders and tags open their browser view with that folder or tag picked.
+    const byFolder = rankedRecipes(recipes, (r) => [r.file.parent?.path ?? ""], 20)
+      .map((row) => ({ ...row, label: row.label.split("/").pop() ?? row.label, pick: () => this.actions.show("folder", row.label) }));
+    if (byFolder.length > 1) this.bars(collection.card("By folder"), byFolder, "");
+    const topTags = rankedRecipes(recipes, (r) => r.tags, 10).map((row) => ({ ...row, pick: () => this.actions.show("tag", row.label) }));
+    if (topTags.length) this.bars(collection.card("Top tags"), topTags, "");
+    const vegan = recipes.filter((r) => r.tags.includes("vegan"));
+    const vegetarian = recipes.filter((r) => !r.tags.includes("vegan") && r.tags.includes("vegetarian"));
+    if (vegan.length || vegetarian.length) {
+      const other = recipes.filter((r) => !r.tags.includes("vegan") && !r.tags.includes("vegetarian"));
+      const pct = (n: number) => `${n} · ${Math.round((100 * n) / recipes.length)}%`;
+      this.bars(collection.card("Diet", "From tags"), [
+        { label: "Vegan", value: vegan.length, text: pct(vegan.length), pick: () => this.actions.show("tag", "vegan") },
+        { label: "Vegetarian", value: vegetarian.length, text: pct(vegetarian.length), pick: () => this.actions.show("tag", "vegetarian") },
+        { label: "Other", value: other.length, text: pct(other.length), files: other.map((r) => r.file) },
+      ], "Neither vegan nor vegetarian");
     }
 
     // Ratings
     const ratings = section("Ratings");
     if (rated.length) {
-      const stars = [5, 4, 3, 2, 1].map((s) => {
-        const n = rated.filter((r) => Math.round(r.rating!) === s).length;
-        return { label: "★".repeat(s), value: n, text: String(n) };
+      const stars: Row[] = [5, 4, 3, 2, 1].map((s) => {
+        const files = rated.filter((r) => Math.round(r.rating!) === s).map((r) => r.file);
+        return { label: "★".repeat(s), value: files.length, text: String(files.length), files };
       });
-      stars.push({ label: "Not rated", value: recipes.length - rated.length, text: String(recipes.length - rated.length) });
-      barList(ratings.card("Ratings"), stars);
+      const unrated = recipes.filter((r) => !(r.rating !== null && r.rating > 0)).map((r) => r.file);
+      stars.push({ label: "Not rated", value: unrated.length, text: String(unrated.length), files: unrated });
+      this.bars(ratings.card("Ratings"), stars, "Rated");
       const best = [...rated].sort((a, b) => b.rating! - a.rating! || a.file.basename.localeCompare(b.file.basename)).slice(0, 6);
-      recipeList(ratings.card("Top rated"), best.map((r) => ({ file: r.file, text: "★".repeat(Math.round(r.rating!)) })), this.openRecipe);
+      recipeList(ratings.card("Top rated"), best.map((r) => ({ file: r.file, text: "★".repeat(Math.round(r.rating!)) })), this.actions.open);
     }
     if (favorites.length) {
-      recipeList(ratings.card("Favorites", undefined, "heart"), favorites.map((r) => ({ file: r.file, text: r.rating ? "★".repeat(Math.round(r.rating)) : "" })), this.openRecipe);
+      recipeList(ratings.card("Favorites", undefined, "heart"), favorites.map((r) => ({ file: r.file, text: r.rating ? "★".repeat(Math.round(r.rating)) : "" })), this.actions.open);
     }
 
     // Time
     const time = section("Time");
     if (timed.length) {
-      const band = (lo: number, hi: number) => timed.filter((r) => r.minutes! >= lo && r.minutes! < hi).length;
-      const bands: Row[] = [
+      const band = (lo: number, hi: number) => timed.filter((r) => r.minutes! >= lo && r.minutes! < hi).map((r) => r.file);
+      const bands: Row[] = ([
         ["Under 15 min", 0, 15], ["15–30 min", 15, 30], ["30–60 min", 30, 60], ["1–2 hours", 60, 120], ["2 hours+", 120, 1e9],
-      ].map(([label, lo, hi]) => ({ label: String(label), value: band(Number(lo), Number(hi)), text: String(band(Number(lo), Number(hi))) }));
-      barList(time.card("Cooking time", `${timed.length} recipes with a time`), bands);
+      ] as Array<[string, number, number]>).map(([label, lo, hi]) => {
+        const files = band(lo, hi);
+        return { label, value: files.length, text: String(files.length), files };
+      });
+      this.bars(time.card("Cooking time", `${timed.length} recipes with a time`), bands, "Cooking time");
       const quickest = [...timed].sort((a, b) => a.minutes! - b.minutes! || a.file.basename.localeCompare(b.file.basename)).slice(0, 6);
-      recipeList(time.card("Quickest"), quickest.map((r) => ({ file: r.file, text: shortTime(r.minutes!) })), this.openRecipe);
+      recipeList(time.card("Quickest"), quickest.map((r) => ({ file: r.file, text: shortTime(r.minutes!) })), this.actions.open);
     }
 
     // Ingredients
     const ingredients = section("Ingredients");
-    const common = ranked(recipes.flatMap((r) => r.ingredients), 12);
+    const common = rankedRecipes(recipes, (r) => r.ingredients, 12);
     const counts = recipes.map((r) => r.ingredients.length).filter((n) => n > 0);
     if (counts.length) {
       ingredients.tile("Typical ingredient count", String(Math.round(median(counts))), "per recipe");
       ingredients.tile("Different ingredients", String(new Set(recipes.flatMap((r) => r.ingredients)).size));
     }
-    if (common.length) barList(ingredients.card("Most used", "Recipes using each"), common);
+    if (common.length) this.bars(ingredients.card("Most used", "Recipes using each"), common, "Recipes with");
     if (counts.length) {
       const fewest = [...recipes].filter((r) => r.ingredients.length).sort((a, b) => a.ingredients.length - b.ingredients.length).slice(0, 6);
-      recipeList(ingredients.card("Fewest ingredients"), fewest.map((r) => ({ file: r.file, text: plural(r.ingredients.length, "ingredient") })), this.openRecipe);
+      recipeList(ingredients.card("Fewest ingredients"), fewest.map((r) => ({ file: r.file, text: plural(r.ingredients.length, "ingredient") })), this.actions.open);
     }
 
     // Sources
     const sources = section("Sources");
-    const sites = recipes.map((r) => {
+    const site = (r: Recipe) => {
       try {
         return typeof r.fm.source === "string" ? new URL(r.fm.source).hostname.replace(/^www\./, "") : "";
       } catch {
         return "";
       }
-    });
-    const topSites = ranked(sites, 8);
+    };
+    const sites = recipes.map(site);
+    const topSites = rankedRecipes(recipes, (r) => [site(r)], 8);
     if (topSites.length) {
       sources.tile("Websites", String(new Set(sites.filter(Boolean)).size), `${sites.filter(Boolean).length} recipes with a link`);
       sources.tile("Without a link", String(sites.filter((s) => !s).length));
-      barList(sources.card("Top sources"), topSites);
+      this.bars(sources.card("Top sources"), topSites, "From");
     }
 
     for (const s of [overview, collection, ratings, time, ingredients, sources]) {
       if (!s.el.querySelector(".cooklang-insights-tile, .cooklang-insights-card")) s.el.remove();
     }
   }
+
+  /** Bars that can be clicked: a row's `pick`, or a list of its recipes (titled `title` + the row's label). */
+  private bars(el: HTMLElement, rows: Row[], title: string): void {
+    barList(el, rows, (row, evt) => {
+      if (row.pick) return row.pick();
+      if (!row.files?.length) return;
+      const menu = new Menu();
+      menu.addItem((i) => i.setTitle(`${title ? `${title} ${row.label}` : row.label} · ${plural(row.files!.length, "recipe")}`).setIsLabel(true));
+      for (const f of [...row.files].sort((a, b) => a.basename.localeCompare(b.basename))) {
+        menu.addItem((i) => i.setTitle(f.basename).setIcon("chef-hat").onClick(() => this.actions.open(f)));
+      }
+      menu.showAtMouseEvent(evt);
+    });
+  }
 }
 
-/** Labelled horizontal bars; the largest value fills the track. */
-function barList(el: HTMLElement, rows: Row[]): void {
+/** Labelled horizontal bars; the largest value fills the track. Rows with something to show are clickable. */
+function barList(el: HTMLElement, rows: Row[], onClick?: (row: Row, evt: MouseEvent) => void): void {
   const top = Math.max(1, ...rows.map((r) => r.value));
   const list = el.createDiv({ cls: "cooklang-insights-bars" });
   for (const r of rows) {
-    const row = list.createDiv({ cls: "cooklang-insights-bar-row", attr: r.hint ? { "aria-label": r.hint } : {} });
+    const clickable = !!onClick && (!!r.pick || !!r.files?.length);
+    const row = list.createDiv({ cls: "cooklang-insights-bar-row" + (clickable ? " is-clickable" : ""), attr: r.hint ? { "aria-label": r.hint } : {} });
     row.createDiv({ cls: "cooklang-insights-bar-label", text: r.label });
     row.createDiv({ cls: "cooklang-insights-bar-track" }).createDiv({ cls: "cooklang-insights-bar-fill" }).style.width = `${Math.max(2, (100 * r.value) / top)}%`;
     row.createDiv({ cls: "cooklang-insights-bar-value", text: r.text });
+    if (clickable) {
+      for (const cell of Array.from(row.children) as HTMLElement[]) {
+        cell.addEventListener("click", (evt) => onClick!(r, evt));
+      }
+    }
   }
 }
 

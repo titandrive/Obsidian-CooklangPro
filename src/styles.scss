@@ -1742,3 +1742,6 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-recipe-browser .bases-toolbar .cooklang-search-item {
   margin-left: var(--size-4-2);
 }
+.cooklang-insights-bar-row.is-clickable > * { cursor: var(--cursor); }
+.cooklang-insights-bar-row.is-clickable:hover > .cooklang-insights-bar-label { color: var(--text-accent); text-decoration: underline; }
+.cooklang-insights-bar-row.is-clickable:hover .cooklang-insights-bar-fill { background: var(--interactive-accent-hover); }
