@@ -439,6 +439,8 @@ export class RecipeImporter extends Component {
   private pickerViews(): Map<string, "folder" | "tag"> {
     const views = new Map<string, "folder" | "tag">();
     for (const v of this.browserBase()?.views ?? []) {
+      // Card views only: the table groups by folder too, but has no room for a sidebar.
+      if (v?.type !== "cards") continue;
       const by = v?.groupBy?.property;
       if (by === "file.folder") views.set(String(v.name), "folder");
       // The tag view: a plain list (older browsers grouped it by each recipe's first tag).
