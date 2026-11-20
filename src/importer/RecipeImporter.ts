@@ -288,7 +288,11 @@ export class RecipeImporter extends Component {
     if (!isBrowser || !el) return;
     this.openInNewTab(view);
     this.browserHaptics(view);
-    this.folderPicker(view);
+    // The browser's base, parsed, for the folder and tag views (the By tag view is added once if missing).
+    if (!this.browserBase() && !this.baseLoading) {
+      this.baseLoading = true;
+      void this.ensureTagView().then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
+    }
     this.filterChip(view);
     this.renderSidebar(view);
     const show = this.settings.cardShow;
@@ -388,52 +392,7 @@ export class RecipeImporter extends Component {
   private searchFocused = new WeakSet<object>();
   private newTabViews = new WeakSet<object>();
   private hapticViews = new WeakMap<object, string>();
-  private folderPickerViews = new WeakSet<object>();
-
-  /**
-   * Long-press (or right-click) the "By folder" view, as a view tab or the views button, to pick the one folder
-   * it shows. The choice is saved as that view's filter in the browser's base file.
-   */
-  private folderPicker(view: any) {
-    const el: HTMLElement | undefined = view?.containerEl;
-    if (!el || this.folderPickerViews.has(view)) return;
-    this.folderPickerViews.add(view);
-    if (!this.browserBase()) void this.ensureTagView().then(() => this.loadBrowserBase());
-    // The view a tab or the views button stands for, if it groups by folder or by tag.
-    const folderViewAt = (target: HTMLElement | null): string | null => {
-      const tab = target?.closest<HTMLElement>("[data-view]");
-      const name = tab?.dataset.view
-        ?? (target?.closest(".bases-toolbar-views-menu") ? String(view?.leaf?.getViewState?.()?.state?.viewName ?? "") : null);
-      return name && this.pickerViews().has(name) ? name : null;
-    };
-    const open = (name: string, at: { x: number; y: number }) => {
-      hapticTap(this.host.settings.haptics !== false);
-      void this.openFolderMenu(view, name, at);
-    };
-    this.registerDomEvent(el, "contextmenu", (evt: MouseEvent) => {
-      const name = folderViewAt(evt.target as HTMLElement);
-      if (!name) return;
-      evt.preventDefault();
-      evt.stopPropagation();
-      open(name, { x: evt.clientX, y: evt.clientY });
-    }, { capture: true });
-    // Long press on touch screens. The click that ends it would switch tabs; let that happen, it shows the view.
-    let timer = 0;
-    this.registerDomEvent(el, "pointerdown", (evt: PointerEvent) => {
-      if (evt.pointerType !== "touch") return;
-      const name = folderViewAt(evt.target as HTMLElement);
-      if (!name) return;
-      const { clientX: x, clientY: y } = evt;
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => open(name, { x, y }), 500);
-    });
-    for (const type of ["pointerup", "pointercancel", "pointermove"] as const) {
-      this.registerDomEvent(el, type, (evt: PointerEvent) => {
-        if (type === "pointermove" && evt.pointerType === "touch" && Math.abs(evt.movementX) + Math.abs(evt.movementY) < 4) return;
-        window.clearTimeout(timer);
-      });
-    }
-  }
+  private baseLoading = false;
 
   /**
    * While a folder or tag view shows only some folders or tags, a chip in the toolbar says which ("vegan",
@@ -577,42 +536,6 @@ export class RecipeImporter extends Component {
     return options.every((o) => set.has(o.value)) ? null : set;
   }
 
-  /**
-   * The folder or tag picker: tick any number of folders or tags, with Select all and Deselect all. The menu
-   * reopens after each tick so several can be changed in a row. The view shows recipes in any ticked one.
-   */
-  private async openFolderMenu(view: any, viewName: string, at: { x: number; y: number }) {
-    const base = await this.loadBrowserBase();
-    const spec = base?.views?.find((v: any) => v?.name === viewName);
-    if (!spec) return;
-    const kind: "folder" | "tag" = spec.groupBy?.property === "formula.first_tag" ? "tag" : "folder";
-    const options = this.pickerOptions(kind);
-    const selection = this.pickerSelection(spec, kind, options);
-    const selected = selection ?? new Set(options.map((o) => o.value));
-    const save = async (next: Set<string>, reopen: boolean) => {
-      await this.applySelection(view, viewName, kind, options, next);
-      if (reopen) window.setTimeout(() => void this.openFolderMenu(view, viewName, at), 60);
-    };
-    const menu = new Menu();
-    // One switch at the top: hide everything when all are shown, otherwise show everything again.
-    const noun = kind === "tag" ? "tags" : "folders";
-    const allShown = selection === null;
-    menu.addItem((i) => i.setTitle(allShown ? `Hide all ${noun}` : `Show all ${noun}`).setIcon(allShown ? "eye-off" : "eye")
-      .onClick(() => save(allShown ? new Set() : new Set(options.map((o) => o.value)), true)));
-    menu.addSeparator();
-    for (const o of options) {
-      menu.addItem((i) => i.setTitle(o.label).setIcon(kind === "tag" ? "tag" : "folder").setChecked(selected.has(o.value))
-        .onClick(() => {
-          hapticTap(this.host.settings.haptics !== false);
-          const next = new Set(selected);
-          if (next.has(o.value)) next.delete(o.value);
-          else next.add(o.value);
-          return save(next, true);
-        }));
-    }
-    menu.showAtPosition(at);
-  }
-
   /** Saves which folders or tags a view shows, as its filter: none for all, "false" for none, else any of them. */
   private async applySelection(view: any, viewName: string, kind: "folder" | "tag", options: { value: string }[], next: Set<string>) {
     const rule = (v: string) => (kind === "tag" ? `file.hasTag("${v.replace(/"/g, "")}")` : `file.folder == "${v.replace(/"/g, '\\"')}"`);
@@ -648,7 +571,7 @@ export class RecipeImporter extends Component {
     const options = this.pickerOptions(kind);
     const selection = this.pickerSelection(spec, kind, options);
     const counts = kind === "tag" ? new Map(this.recipeTags()) : this.folderCounts();
-    const key = JSON.stringify([kind, viewName, [...(selection ?? [])], options.map((o) => [o.value, counts.get(o.value) ?? 0])]);
+    const key = JSON.stringify([kind, viewName, [...(selection ?? [])], options.map((o) => [o.value, counts.get(o.value) ?? 0, this.iconicIcon(kind, o.value)])]);
     if (bar?.dataset.key === key) return;
     bar?.remove();
     bar = createDiv({ cls: `cooklang-sidebar is-${kind}` });
@@ -658,9 +581,14 @@ export class RecipeImporter extends Component {
     if (!had) window.requestAnimationFrame(() => view?.controller?.view?.onResize?.());
 
     const total = this.app.vault.getMarkdownFiles().filter((f) => this.isRecipe(f)).length;
-    const item = (label: string, icon: string, count: number, selected: boolean, onPick: (multi: boolean) => void) => {
+    const item = (label: string, icon: string, count: number, selected: boolean, onPick: (multi: boolean) => void,
+      custom: { icon: string; color?: string } | null = null) => {
       const row = bar!.createDiv({ cls: "cooklang-sidebar-item" + (selected ? " is-selected" : ""), attr: { role: "button", tabindex: "0" } });
-      setIcon(row.createSpan({ cls: "cooklang-sidebar-icon" }), icon);
+      const iconEl = row.createSpan({ cls: "cooklang-sidebar-icon" });
+      // An icon set with the Iconic plugin for this folder or tag: a Lucide icon or an emoji, maybe coloured.
+      if (custom?.icon && !/^lucide-/.test(custom.icon) && !/^[a-z0-9-]+$/.test(custom.icon)) iconEl.setText(custom.icon);
+      else setIcon(iconEl, custom?.icon ?? icon);
+      if (custom?.color && !selected) iconEl.style.color = /^(#|rgb|hsl)/.test(custom.color) ? custom.color : `var(--color-${custom.color})`;
       row.createSpan({ cls: "cooklang-sidebar-label", text: label });
       row.createSpan({ cls: "cooklang-sidebar-count", text: String(count) });
       row.addEventListener("click", (e) => {
@@ -690,8 +618,15 @@ export class RecipeImporter extends Component {
           next = picked && selection!.size === 1 ? all : new Set([o.value]);
         }
         void this.applySelection(view, viewName, kind, options, next);
-      });
+      }, this.iconicIcon(kind, o.value));
     }
+  }
+
+  /** The icon the Iconic plugin has for a folder (by path) or tag, if it's installed and one is set. */
+  private iconicIcon(kind: "folder" | "tag", value: string): { icon: string; color?: string } | null {
+    const settings = (this.app as any).plugins?.plugins?.iconic?.settings;
+    const entry = kind === "folder" ? settings?.fileIcons?.[value] : settings?.tagIcons?.[value];
+    return entry?.icon ? { icon: String(entry.icon), color: entry.color ? String(entry.color) : undefined } : null;
   }
 
   /** How many recipes each folder holds, by folder path. */
