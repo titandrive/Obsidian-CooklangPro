@@ -1202,3 +1202,9 @@ button.cook-pill.is-clickable {
     }
   }
 }
+
+// On phones Obsidian rounds icon buttons into pills, which turns the recipe browser's view tabs (from Daily Journal)
+// into ovals. Use the same small rounded corners as on desktop.
+.is-mobile .cooklang-recipe-browser .dj-base-tab {
+  border-radius: var(--radius-s);
+}
