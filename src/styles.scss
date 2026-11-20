@@ -1376,16 +1376,15 @@ button.cook-pill.is-clickable {
   }
 }
 
-// The always-on search box sits in the recipe browser's toolbar on card views (Bases hides it behind its Search
-// button, in a row of its own).
+// The search box sits in the recipe browser's toolbar, always open (Bases hides it behind its Search button, in a
+// row of its own), and fills the toolbar's free space.
 .cooklang-recipe-browser.cooklang-search-always .bases-toolbar-search {
   display: none;
 }
 
 .cooklang-recipe-browser .cooklang-search-item {
-  flex: 0 1 220px;
+  flex: 1 1 auto;
   min-width: 110px;
-  margin-left: auto;
 
   .search-input-container {
     position: relative;

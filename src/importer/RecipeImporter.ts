@@ -25,8 +25,6 @@ export interface ImporterSettings {
   useClaude: boolean;
   /** The By tag view was added to an existing recipe browser (done once, so deleting it sticks). */
   tagViewAdded: boolean;
-  /** An always-open search box on the browser's card views (Options menu); off: Bases' Search button. */
-  searchBar: boolean;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -41,7 +39,6 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   browserNewTab: true,
   useClaude: true,
   tagViewAdded: false,
-  searchBar: true,
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -291,11 +288,9 @@ export class RecipeImporter extends Component {
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
     this.renderFolderBadges(view, show.folder);
-    // Bases' own search row stays open on card views, so searching is one tap; the table keeps the Search button.
-    const cards = view?.controller?.view?.type !== "table";
-    const searchOn = cards && this.settings.searchBar;
-    el.toggleClass("cooklang-search-always", searchOn);
-    this.placeSearchBox(el, searchOn);
+    // Bases' search box lives in the toolbar, always open, so searching is one tap in every view.
+    el.toggleClass("cooklang-search-always", true);
+    this.placeSearchBox(el, true);
     const search = el.querySelector<HTMLInputElement>(".bases-search-row input, .cooklang-search-item input");
     if (search && !search.dataset.cooklangSearch) {
       // Bases only listens while its own search is open; pass what's typed (and cleared) straight to the view.
@@ -738,8 +733,6 @@ export class RecipeImporter extends Component {
     toggle("Time", show.time, () => { show.time = !show.time; setDetails(); });
     toggle("Servings", show.servings, () => { show.servings = !show.servings; setDetails(); });
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
-    menu.addSeparator();
-    toggle("Search bar", this.settings.searchBar, () => (this.settings.searchBar = !this.settings.searchBar));
     menu.addSeparator();
     toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
     menu.showAtMouseEvent(evt);
