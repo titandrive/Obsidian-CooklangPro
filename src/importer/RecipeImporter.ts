@@ -247,6 +247,12 @@ export class RecipeImporter extends Component {
       }
     });
     // Keep the parsed browser base current, for the folder picker.
+    // Also when the file is replaced (a sync or a move over it), not just edited, so the chip etc. never go stale.
+    const reloadIfBrowser = (f: { path: string }) => {
+      if (f.path === this.browserPath()) void this.loadBrowserBase().then(() => this.refreshBrowsers());
+    };
+    this.registerEvent(this.app.vault.on("create", reloadIfBrowser));
+    this.registerEvent(this.app.vault.on("rename", reloadIfBrowser));
     this.registerEvent(this.app.vault.on("modify", (f) => {
       if (f.path === this.browserPath()) void this.loadBrowserBase().then(() => this.refreshBrowsers());
     }));
@@ -945,6 +951,9 @@ export class RecipeImporter extends Component {
       else delete spec.filters;
       return stringifyYaml(data);
     });
+    // Re-read even if nothing changed, so a chip for a filter that's already gone still clears.
+    await this.loadBrowserBase();
+    this.refreshBrowsers();
   }
 
   /** Haptic ticks in the recipe browser: its buttons, cards and table rows, and switching views. */
