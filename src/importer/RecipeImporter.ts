@@ -364,6 +364,15 @@ export class RecipeImporter extends Component {
       this.registerDomEvent(search, "input", apply);
       search.addEventListener("search", apply);
       this.registerDomEvent(search, "keydown", (e: KeyboardEvent) => {
+        // Backspace in an empty box removes the Insights filter chip, like deleting a tag.
+        if (e.key === "Backspace" && !search.value && search.selectionStart === 0) {
+          const chip = search.parentElement?.querySelector<HTMLElement>(".cooklang-results-chip-button");
+          if (chip) {
+            e.preventDefault();
+            chip.click();
+            return;
+          }
+        }
         if (e.key === "Escape" && search.value) {
           e.preventDefault();
           e.stopPropagation();
@@ -374,6 +383,8 @@ export class RecipeImporter extends Component {
       search.parentElement?.querySelector(".search-input-clear-button")?.addEventListener("click", () => {
         search.value = "";
         apply();
+        // The x clears the filter chip too.
+        search.parentElement?.querySelector<HTMLElement>(".cooklang-results-chip-button")?.click();
       });
     }
     this.addShowButton(view);
