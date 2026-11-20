@@ -305,10 +305,11 @@ export class RecipeImporter extends Component {
       if (input && this.app.workspace.getMostRecentLeaf()?.view === view) window.setTimeout(() => input.focus(), 0);
     }
     const search = el.querySelector<HTMLInputElement>(".bases-search-row input, .cooklang-search-item input");
+    if (search && search.placeholder !== "Search recipes") search.placeholder = "Search recipes";
     if (search && !search.dataset.cooklangSearch) {
       // Bases only listens while its own search is open; pass what's typed (and cleared) straight to the view.
       search.dataset.cooklangSearch = "1";
-      search.placeholder = "Search recipes...";
+      search.placeholder = "Search recipes";
       const apply = () => view?.controller?.updateSearchQuery?.(search.value.trim());
       this.registerDomEvent(search, "input", apply);
       search.addEventListener("search", apply);
@@ -724,7 +725,7 @@ export class RecipeImporter extends Component {
     if (!toolbar || toolbar.querySelector(".cooklang-import-button")) return;
     const item = createDiv({ cls: "bases-toolbar-item cooklang-import-button" });
     const button = item.createDiv({ cls: "text-icon-button tappable", attr: { tabindex: "0", role: "button", "aria-label": "Import a recipe" } });
-    setIcon(button.createSpan({ cls: "text-button-icon" }), "import");
+    setIcon(button.createSpan({ cls: "text-button-icon" }), "plus");
     button.createSpan({ cls: "text-button-label", text: "Import" });
     const open = () => new ImportModal(this.app, this).open();
     button.addEventListener("click", open);
