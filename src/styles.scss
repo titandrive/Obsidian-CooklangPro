@@ -1209,6 +1209,26 @@ button.cook-pill.is-clickable {
   border-radius: var(--radius-s);
 }
 
+// The selected view tab is filled with the accent color, as on phones. Some themes (Catppuccin) instead draw an
+// outline and an inset "pressed" shadow on desktop; leave those off here.
+.cooklang-recipe-browser .dj-base-tab.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+  --icon-color: var(--text-on-accent);
+  --icon-color-hover: var(--text-on-accent);
+  --icon-color-active: var(--text-on-accent);
+  outline: none;
+
+  svg {
+    color: var(--text-on-accent);
+  }
+  box-shadow: none;
+
+  &:hover {
+    background-color: var(--interactive-accent-hover);
+  }
+}
+
 // Recipe browser cards: tags on one compact line, smaller and muted, after a tag icon.
 .cooklang-recipe-browser .bases-cards-property[data-property="note.tags"] .bases-cards-line {
   display: flex;
