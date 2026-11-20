@@ -290,6 +290,7 @@ export class RecipeImporter extends Component {
     this.browserHaptics(view);
     this.folderPicker(view);
     this.filterChip(view);
+    this.renderSidebar(view);
     const show = this.settings.cardShow;
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
@@ -588,15 +589,8 @@ export class RecipeImporter extends Component {
     const options = this.pickerOptions(kind);
     const selection = this.pickerSelection(spec, kind, options);
     const selected = selection ?? new Set(options.map((o) => o.value));
-    const rule = (v: string) => (kind === "tag" ? `file.hasTag("${v.replace(/"/g, "")}")` : `file.folder == "${v.replace(/"/g, '\\"')}"`);
     const save = async (next: Set<string>, reopen: boolean) => {
-      const chosen = options.filter((o) => next.has(o.value)).map((o) => o.value);
-      const filters = chosen.length === options.length ? null
-        : chosen.length === 0 ? { and: ["false"] }
-        : chosen.length === 1 ? { and: [rule(chosen[0])] }
-        : { or: chosen.map(rule) };
-      await this.setViewFilters(viewName, filters);
-      view?.controller?.selectView?.(viewName);
+      await this.applySelection(view, viewName, kind, options, next);
       if (reopen) window.setTimeout(() => void this.openFolderMenu(view, viewName, at), 60);
     };
     const menu = new Menu();
@@ -617,6 +611,97 @@ export class RecipeImporter extends Component {
         }));
     }
     menu.showAtPosition(at);
+  }
+
+  /** Saves which folders or tags a view shows, as its filter: none for all, "false" for none, else any of them. */
+  private async applySelection(view: any, viewName: string, kind: "folder" | "tag", options: { value: string }[], next: Set<string>) {
+    const rule = (v: string) => (kind === "tag" ? `file.hasTag("${v.replace(/"/g, "")}")` : `file.folder == "${v.replace(/"/g, '\\"')}"`);
+    const chosen = options.filter((o) => next.has(o.value)).map((o) => o.value);
+    const filters = chosen.length === options.length ? null
+      : chosen.length === 0 ? { and: ["false"] }
+      : chosen.length === 1 ? { and: [rule(chosen[0])] }
+      : { or: chosen.map(rule) };
+    await this.setViewFilters(viewName, filters);
+    view?.controller?.selectView?.(viewName);
+  }
+
+  /**
+   * In the By tag and By folder views, a list of every tag or folder beside the cards (a strip of chips under the
+   * search box on phones). Click one to show only it, click it again to show all; Ctrl/Cmd-click to pick several.
+   */
+  private renderSidebar(view: any) {
+    const root: HTMLElement | undefined = view?.containerEl;
+    const content = root?.querySelector<HTMLElement>(".view-content");
+    const basesView = content?.querySelector<HTMLElement>(":scope > .bases-view");
+    if (!root || !content || !basesView) return;
+    const viewName = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
+    const kind = this.pickerViews().get(viewName);
+    let bar = content.querySelector<HTMLElement>(":scope > .cooklang-sidebar");
+    const had = root.hasClass("cooklang-has-sidebar");
+    if (!kind) {
+      bar?.remove();
+      root.removeClass("cooklang-has-sidebar");
+      if (had) window.requestAnimationFrame(() => view?.controller?.view?.onResize?.());
+      return;
+    }
+    const spec = this.browserBase()?.views?.find((v: any) => v?.name === viewName);
+    const options = this.pickerOptions(kind);
+    const selection = this.pickerSelection(spec, kind, options);
+    const counts = kind === "tag" ? new Map(this.recipeTags()) : this.folderCounts();
+    const key = JSON.stringify([kind, viewName, [...(selection ?? [])], options.map((o) => [o.value, counts.get(o.value) ?? 0])]);
+    if (bar?.dataset.key === key) return;
+    bar?.remove();
+    bar = createDiv({ cls: `cooklang-sidebar is-${kind}` });
+    bar.dataset.key = key;
+    content.insertBefore(bar, basesView);
+    root.addClass("cooklang-has-sidebar");
+    if (!had) window.requestAnimationFrame(() => view?.controller?.view?.onResize?.());
+
+    const total = this.app.vault.getMarkdownFiles().filter((f) => this.isRecipe(f)).length;
+    const item = (label: string, icon: string, count: number, selected: boolean, onPick: (multi: boolean) => void) => {
+      const row = bar!.createDiv({ cls: "cooklang-sidebar-item" + (selected ? " is-selected" : ""), attr: { role: "button", tabindex: "0" } });
+      setIcon(row.createSpan({ cls: "cooklang-sidebar-icon" }), icon);
+      row.createSpan({ cls: "cooklang-sidebar-label", text: label });
+      row.createSpan({ cls: "cooklang-sidebar-count", text: String(count) });
+      row.addEventListener("click", (e) => {
+        hapticTap(this.host.settings.haptics !== false);
+        onPick(e.ctrlKey || e.metaKey);
+      });
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onPick(e.ctrlKey || e.metaKey);
+        }
+      });
+    };
+    const all = new Set(options.map((o) => o.value));
+    item(kind === "tag" ? "All tags" : "All folders", kind === "tag" ? "tags" : "folders", total, selection === null,
+      () => void this.applySelection(view, viewName, kind, options, all));
+    for (const o of options) {
+      const picked = selection !== null && selection.has(o.value);
+      item(o.label.replace(/ \(\d+\)$/, ""), kind === "tag" ? "tag" : "folder", counts.get(o.value) ?? 0, picked, (multi) => {
+        let next: Set<string>;
+        if (multi) {
+          next = new Set(selection ?? []);
+          if (next.has(o.value)) next.delete(o.value);
+          else next.add(o.value);
+          if (next.size === 0) next = all;
+        } else {
+          next = picked && selection!.size === 1 ? all : new Set([o.value]);
+        }
+        void this.applySelection(view, viewName, kind, options, next);
+      });
+    }
+  }
+
+  /** How many recipes each folder holds, by folder path. */
+  private folderCounts(): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const f of this.app.vault.getMarkdownFiles()) {
+      if (!this.isRecipe(f) || !f.parent) continue;
+      counts.set(f.parent.path, (counts.get(f.parent.path) ?? 0) + 1);
+    }
+    return counts;
   }
 
   /** Saves (or clears) a view's filters in the base file. */
@@ -778,7 +863,8 @@ export class RecipeImporter extends Component {
 
 
   onunload() {
-    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button").forEach((el) => el.remove());
+    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button, .cooklang-sidebar").forEach((el) => el.remove());
+    document.querySelectorAll(".cooklang-has-sidebar").forEach((el) => el.removeClass("cooklang-has-sidebar"));
   }
 
   /** The photos folder, when photos are kept in their own folder; null when they go beside recipes. */

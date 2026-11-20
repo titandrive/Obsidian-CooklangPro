@@ -1529,3 +1529,115 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
     }
   }
 }
+
+// By tag and By folder: a list of tags or folders beside the cards, like a file browser.
+.cooklang-recipe-browser.cooklang-has-sidebar .view-content {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+
+  > .bases-header,
+  > .bases-search-row,
+  > .bases-error {
+    grid-column: 1 / -1;
+  }
+
+  > .cooklang-sidebar {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  > .bases-view {
+    grid-column: 2;
+    grid-row: 4;
+    min-height: 0;
+  }
+}
+
+.cooklang-sidebar {
+  overflow-y: auto;
+  padding: var(--size-4-2) var(--size-4-1) var(--size-4-4);
+  border-right: 1px solid var(--background-modifier-border);
+}
+
+.cooklang-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-2-2) var(--size-4-2);
+  border-radius: var(--radius-s);
+  color: var(--nav-item-color, var(--text-muted));
+  font-size: var(--font-ui-small);
+  cursor: var(--cursor);
+
+  &:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  &.is-selected {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+
+    .cooklang-sidebar-count {
+      color: var(--text-on-accent);
+      opacity: 0.8;
+    }
+  }
+}
+
+.cooklang-sidebar-icon {
+  display: inline-flex;
+  flex: none;
+  --icon-size: 14px;
+}
+
+.cooklang-sidebar-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cooklang-sidebar-count {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+// Phones: a strip of chips under the search box that scrolls sideways, instead of a sidebar.
+.is-mobile .cooklang-recipe-browser.cooklang-has-sidebar .view-content {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+
+  > .cooklang-sidebar {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  > .bases-view {
+    grid-column: 1;
+    grid-row: 5;
+  }
+}
+
+.is-mobile .cooklang-sidebar {
+  display: flex;
+  gap: var(--size-4-1);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 var(--size-4-3) var(--size-4-2);
+  border-right: none;
+  scrollbar-width: none;
+
+  .cooklang-sidebar-item {
+    flex: none;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 999px;
+    padding: var(--size-2-2) var(--size-4-3);
+  }
+
+  .cooklang-sidebar-item.is-selected {
+    border-color: var(--interactive-accent);
+  }
+}
