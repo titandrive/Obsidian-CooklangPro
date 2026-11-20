@@ -561,9 +561,10 @@ export class RecipeImporter extends Component {
     const kind = this.pickerViews().get(viewName);
     let bar = content.querySelector<HTMLElement>(":scope > .cooklang-sidebar");
     const had = root.hasClass("cooklang-has-sidebar");
+    this.drawerButton(root, kind ?? null);
     if (!kind) {
       bar?.remove();
-      root.removeClass("cooklang-has-sidebar");
+      root.removeClass("cooklang-has-sidebar", "cooklang-drawer-open");
       if (had) window.requestAnimationFrame(() => view?.controller?.view?.onResize?.());
       return;
     }
@@ -596,6 +597,8 @@ export class RecipeImporter extends Component {
       row.addEventListener("click", (e) => {
         hapticTap(this.host.settings.haptics !== false);
         onPick(e.ctrlKey || e.metaKey);
+        // On phones the list is a drawer over the cards: close it once something is picked.
+        if (Platform.isMobile) root.removeClass("cooklang-drawer-open");
       });
       row.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -674,6 +677,45 @@ export class RecipeImporter extends Component {
         longPressed = false;
       }
     }, { capture: true });
+  }
+
+  /**
+   * Phones: the tag or folder list is a drawer that slides in over the cards. A button at the start of the toolbar
+   * opens and closes it; tapping the dimmed cards closes it too.
+   */
+  private drawerButton(root: HTMLElement, kind: "folder" | "tag" | null) {
+    const toolbar = root.querySelector<HTMLElement>(".bases-toolbar");
+    const content = root.querySelector<HTMLElement>(".view-content");
+    if (!toolbar || !content) return;
+    let item = toolbar.querySelector<HTMLElement>(".cooklang-drawer-button");
+    let shade = content.querySelector<HTMLElement>(":scope > .cooklang-drawer-shade");
+    if (!Platform.isMobile || !kind) {
+      item?.remove();
+      shade?.remove();
+      root.removeClass("cooklang-drawer-open");
+      return;
+    }
+    const label = kind === "tag" ? "Tags" : "Folders";
+    if (!item) {
+      item = createDiv({ cls: "bases-toolbar-item cooklang-drawer-button" });
+      const button = item.createDiv({ cls: "text-icon-button tappable", attr: { role: "button", tabindex: "0" } });
+      setIcon(button.createSpan({ cls: "text-button-icon" }), "panel-left");
+      button.addEventListener("click", () => {
+        // The drawer starts just under the toolbar and search box.
+        const header = content.querySelector<HTMLElement>(":scope > .bases-header");
+        const search = content.querySelector<HTMLElement>(":scope > .bases-search-row");
+        const top = (header?.offsetHeight ?? 0) + (search?.offsetParent ? search.offsetHeight : 0);
+        root.style.setProperty("--cooklang-drawer-top", `${top}px`);
+        root.toggleClass("cooklang-drawer-open", !root.hasClass("cooklang-drawer-open"));
+      });
+      toolbar.prepend(item);
+    }
+    item.firstElementChild?.setAttr("aria-label", `Show ${label.toLowerCase()}`);
+    if (!shade) {
+      shade = createDiv({ cls: "cooklang-drawer-shade" });
+      shade.addEventListener("click", () => root.removeClass("cooklang-drawer-open"));
+      content.appendChild(shade);
+    }
   }
 
   /** The icon the Iconic plugin has for a folder (by path) or tag, if it's installed and one is set. */
@@ -853,7 +895,8 @@ export class RecipeImporter extends Component {
 
   onunload() {
     document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button, .cooklang-sidebar").forEach((el) => el.remove());
-    document.querySelectorAll(".cooklang-has-sidebar").forEach((el) => el.removeClass("cooklang-has-sidebar"));
+    document.querySelectorAll(".cooklang-drawer-button, .cooklang-drawer-shade").forEach((el) => el.remove());
+    document.querySelectorAll(".cooklang-has-sidebar").forEach((el) => el.removeClass("cooklang-has-sidebar", "cooklang-drawer-open"));
   }
 
   /** The photos folder, when photos are kept in their own folder; null when they go beside recipes. */
