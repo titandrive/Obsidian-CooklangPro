@@ -1305,3 +1305,53 @@ button.cook-pill.is-clickable {
 .cooklang-recipe-browser .bases-toolbar-group-menu {
   display: none;
 }
+
+// The recipe's folder, top-left on each browser card's photo (the heart is top-right, the stars bottom-centre).
+.cooklang-card-folder {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  max-width: calc(100% - 56px);
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.15em 0.55em;
+  border-radius: var(--radius-l);
+  background-color: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cooklang-card-folder-icon {
+  display: inline-flex;
+  flex: none;
+  --icon-size: 12px;
+  --icon-stroke: 2.25px;
+}
+
+// Card details: a clock and "30m", a plate and "4".
+.cooklang-recipe-browser .cooklang-card-details {
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  overflow: hidden;
+}
+
+.cooklang-card-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+
+.cooklang-card-detail-icon {
+  display: inline-flex;
+  color: var(--text-muted);
+  --icon-size: 14px;
+}

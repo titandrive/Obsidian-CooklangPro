@@ -2,7 +2,7 @@ import { App, Component, Menu, Modal, Notice, Platform, Plugin, Setting, TFile, 
 import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
 import { CLAUDE_MODELS, DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
-import { parseRecipeText } from "./textRecipe";
+import { minutesIn, parseRecipeText } from "./textRecipe";
 import { hapticTap, TAPPABLE } from "../utils/haptics";
 import { syncBrowserRows } from "./rating";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
@@ -18,7 +18,7 @@ export interface ImporterSettings {
   /** Vault path of the photos folder when `photoLocation` is "folder", e.g. "Recipes/Photos". */
   photosFolder: string;
   /** What the recipe browser's cards show, set from its "Show" toolbar menu. */
-  cardShow: { heart: boolean; stars: boolean; time: boolean; servings: boolean };
+  cardShow: { heart: boolean; stars: boolean; time: boolean; servings: boolean; folder: boolean };
   /** Clicking a recipe in the recipe browser opens it in a new tab instead of the browser's tab. */
   browserNewTab: boolean;
   /** Use Claude when there's an API key; switched in the import dialog. */
@@ -35,7 +35,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   saveImage: true,
   photoLocation: "folder",
   photosFolder: "Recipes/Photos",
-  cardShow: { heart: true, stars: true, time: true, servings: true },
+  cardShow: { heart: true, stars: true, time: true, servings: true, folder: true },
   browserNewTab: true,
   useClaude: true,
   tagViewAdded: false,
@@ -287,8 +287,34 @@ export class RecipeImporter extends Component {
     const show = this.settings.cardShow;
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
     el.toggleClass("cooklang-hide-card-stars", !show.stars);
+    this.renderFolderBadges(view, show.folder);
     this.addShowButton(view);
     this.renderCardDetails(view);
+  }
+
+  /** The recipe's folder as a small badge in the top-left corner of each card's photo (Show menu: Folder). */
+  private renderFolderBadges(view: any, on: boolean) {
+    const items: any[] = view?.controller?.view?.items ?? [];
+    // Not in views grouped by folder: the group headings already say it.
+    const viewName = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
+    if (this.pickerViews().get(viewName) === "folder") on = false;
+    for (const item of items) {
+      const cover: HTMLElement | undefined = item?.coverEl;
+      const file = item?.entry?.file;
+      if (!(cover instanceof HTMLElement)) continue;
+      let badge = cover.querySelector<HTMLElement>(":scope > .cooklang-card-folder");
+      const name = on && file instanceof TFile && this.isRecipe(file) ? file.parent?.name ?? "" : "";
+      if (!name || file.parent?.path === normalizePath(this.settings.recipesFolder)) {
+        badge?.remove();
+        continue;
+      }
+      if (badge?.dataset.folder === name) continue;
+      badge?.remove();
+      badge = cover.createDiv({ cls: "cooklang-card-folder" });
+      badge.dataset.folder = name;
+      setIcon(badge.createSpan({ cls: "cooklang-card-folder-icon" }), "folder");
+      badge.createSpan({ text: name });
+    }
   }
 
   private newTabViews = new WeakSet<object>();
@@ -594,11 +620,22 @@ export class RecipeImporter extends Component {
       const line: HTMLElement | null | undefined = item?.el?.querySelector('[data-property="formula.details"] .bases-cards-line');
       if (!(file instanceof TFile) || !line) continue;
       const fm = this.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-      const parts: string[] = [];
-      if (show.time && fm.time) parts.push(String(fm.time));
-      if (show.servings && fm.servings) parts.push(`${fm.servings} serving${Number(fm.servings) === 1 ? "" : "s"}`);
-      const text = parts.join(" · ");
-      if (line.textContent !== text) line.setText(text);
+      // Compact: a clock and "1h 15m", a plate and "4".
+      const parts: [icon: string, text: string, label: string][] = [];
+      if (show.time && fm.time) parts.push(["clock", shortTime(String(fm.time)), String(fm.time)]);
+      if (show.servings && fm.servings) {
+        parts.push(["utensils", String(fm.servings), `${fm.servings} serving${Number(fm.servings) === 1 ? "" : "s"}`]);
+      }
+      const key = JSON.stringify(parts);
+      if (line.dataset.cooklangDetails === key) continue;
+      line.dataset.cooklangDetails = key;
+      line.empty();
+      line.addClass("cooklang-card-details");
+      for (const [icon, text, label] of parts) {
+        const part = line.createSpan({ cls: "cooklang-card-detail", attr: { "aria-label": label } });
+        setIcon(part.createSpan({ cls: "cooklang-card-detail-icon" }), icon);
+        part.createSpan({ text });
+      }
     }
   }
 
@@ -636,6 +673,7 @@ export class RecipeImporter extends Component {
       }));
     toggle("Favorite heart", show.heart, () => (show.heart = !show.heart));
     toggle("Rating stars", show.stars, () => (show.stars = !show.stars));
+    toggle("Folder", show.folder, () => (show.folder = !show.folder));
     menu.addSeparator();
     const setDetails = () => {
       // With neither time nor servings, drop the details line so the cards get shorter.
@@ -1382,6 +1420,15 @@ async function readClipboard(): Promise<string> {
 async function clipboardLink(): Promise<string | null> {
   const text = (await readClipboard()).trim();
   return /^https?:\/\/\S+\.\S+$/i.test(text) ? text : null;
+}
+
+/** "1 hour 15 minutes" -> "1h 15m", "30 minutes" -> "30m". Text it can't read is kept as it is. */
+export function shortTime(time: string): string {
+  const minutes = minutesIn(time);
+  if (minutes === null) return time;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 }
 
 function plural(n: number, word: string): string {
