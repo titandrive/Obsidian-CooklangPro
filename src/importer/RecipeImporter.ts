@@ -293,7 +293,6 @@ export class RecipeImporter extends Component {
       this.baseLoading = true;
       void this.ensureTagView().then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
     }
-    this.filterChip(view);
     this.renderSidebar(view);
     const show = this.settings.cardShow;
     el.toggleClass("cooklang-hide-card-heart", !show.heart);
@@ -393,57 +392,6 @@ export class RecipeImporter extends Component {
   private newTabViews = new WeakSet<object>();
   private hapticViews = new WeakMap<object, string>();
   private baseLoading = false;
-
-  /**
-   * While a folder or tag view shows only some folders or tags, a chip in the toolbar says which ("vegan",
-   * "3 tags", "None"), and tapping it shows all of them again.
-   */
-  private filterChip(view: any) {
-    const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
-    if (!toolbar) return;
-    const viewName = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
-    const kind = this.pickerViews().get(viewName);
-    const spec = kind ? this.browserBase()?.views?.find((v: any) => v?.name === viewName) : null;
-    const options = kind ? this.pickerOptions(kind) : [];
-    const selected = kind ? this.pickerSelection(spec, kind, options) : null;
-    // No chip when everything is shown.
-    let value: string | null = null;
-    if (kind && selected) {
-      const label = (v: string) => (kind === "folder" ? v.split("/").pop() ?? v : v);
-      value = selected.size === 0 ? "None"
-        : selected.size === 1 ? label([...selected][0])
-        : `${selected.size} ${kind === "tag" ? "tags" : "folders"}`;
-    }
-
-    let chip = toolbar.querySelector<HTMLElement>(".cooklang-filter-chip");
-    if (!value) {
-      chip?.remove();
-      return;
-    }
-    const key = `${viewName}\u0000${value}`;
-    if (chip?.dataset.key === key) return;
-    chip?.remove();
-    chip = createDiv({ cls: "bases-toolbar-item cooklang-filter-chip" });
-    chip.dataset.key = key;
-    const button = chip.createDiv({
-      cls: "cooklang-filter-chip-button",
-      attr: { tabindex: "0", role: "button", "aria-label": `Showing ${value}. Click to show all.` },
-    });
-    setIcon(button.createSpan({ cls: "cooklang-filter-chip-icon" }), kind === "tag" ? "tag" : "folder");
-    button.createSpan({ text: value });
-    setIcon(button.createSpan({ cls: "cooklang-filter-chip-x" }), "x");
-    const clear = () => void this.setViewFilters(viewName, null);
-    button.addEventListener("click", clear);
-    button.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        clear();
-      }
-    });
-    const after = toolbar.querySelector(".dj-base-tabs") ?? toolbar.querySelector(".bases-toolbar-views-menu");
-    if (after) after.after(chip);
-    else toolbar.prepend(chip);
-  }
 
   /** The browser's views that have a picker: those grouping by folder, and those grouping by first tag. */
   private pickerViews(): Map<string, "folder" | "tag"> {
@@ -894,7 +842,7 @@ export class RecipeImporter extends Component {
 
 
   onunload() {
-    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button, .cooklang-sidebar").forEach((el) => el.remove());
+    document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-import-button, .cooklang-sidebar, .cooklang-filter-chip").forEach((el) => el.remove());
     document.querySelectorAll(".cooklang-drawer-button, .cooklang-drawer-shade").forEach((el) => el.remove());
     document.querySelectorAll(".cooklang-has-sidebar").forEach((el) => el.removeClass("cooklang-has-sidebar", "cooklang-drawer-open"));
   }
