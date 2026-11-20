@@ -1754,6 +1754,8 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   top: 50%;
   transform: translateY(-50%);
   z-index: 1;
+  // Full name unless the box is narrow (phones); then it's cut off, leaving room to type.
+  max-width: calc(100% - 140px);
 }
 
 // With a filter chip the x shows even when nothing's typed, so the chip can be cleared from there too.
@@ -1775,7 +1777,7 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   color: var(--text-on-accent);
   font-size: var(--font-ui-smaller);
   white-space: nowrap;
-  max-width: 16em;
+  max-width: 100%;
   cursor: var(--cursor);
 
   &:hover { background-color: var(--interactive-accent-hover); }
