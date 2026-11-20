@@ -619,27 +619,46 @@ export class RecipeImporter extends Component {
     const list = JSON.stringify(files.map((f) => f.path));
     this.settings.resultsLabel = label;
     await this.saveSettings();
-    await this.setViewFilters(name, { and: [`${list}.contains(file.path)`] });
+    // The label rides along in the filter (an always-true first clause), so it's saved with the view and syncs.
+    await this.setViewFilters(name, { and: [`${JSON.stringify(label)} != "" && ${list}.contains(file.path)`] });
     controller?.selectView?.(name);
   }
 
-  /** On the results view while it's narrowed: a chip with what it shows ("garlic ×"); tap it to show everything. */
+  /**
+   * On the results view while it's narrowed: a chip inside the search box with what it shows ("garlic ×"); tap it
+   * to show everything.
+   */
   private resultsChip(view: any) {
-    const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
-    if (!toolbar) return;
+    const box: HTMLElement | null = view?.containerEl?.querySelector(".cooklang-search-item .search-input-container");
+    if (!box) return;
     const name = this.resultsViewName();
     const current = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
     const spec = this.browserBase()?.views?.find((v: any) => v?.name === name);
-    const narrowed = !!name && current === name && JSON.stringify(spec?.filters ?? "").includes(".contains(file.path)");
-    let chip = toolbar.querySelector<HTMLElement>(".cooklang-results-chip");
+    const rules: string[] = [];
+    const collect = (f: any) => {
+      if (typeof f === "string") rules.push(f);
+      else if (f && typeof f === "object") Object.values(f).forEach(collect);
+    };
+    collect(spec?.filters);
+    const rule = rules.find((r) => r.includes(".contains(file.path)"));
+    const narrowed = !!name && current === name && !!rule;
+    const saved = rule ? /^("(?:[^"\\]|\\.)*") != "" && /.exec(rule)?.[1] : undefined;
+    let chip = box.querySelector<HTMLElement>(".cooklang-results-chip");
+    box.toggleClass("has-results-chip", narrowed);
     if (!narrowed) {
       chip?.remove();
+      box.style.removeProperty("--cooklang-chip-width");
       return;
     }
-    const label = this.settings.resultsLabel || "Filtered";
+    let label = this.settings.resultsLabel || "Filtered";
+    try {
+      if (saved) label = JSON.parse(saved);
+    } catch {
+      // keep the fallback
+    }
     if (chip?.dataset.label === label) return;
     chip?.remove();
-    chip = createDiv({ cls: "bases-toolbar-item cooklang-results-chip" });
+    chip = createDiv({ cls: "cooklang-results-chip" });
     chip.dataset.label = label;
     const button = chip.createDiv({ cls: "cooklang-results-chip-button", attr: { role: "button", tabindex: "0", "aria-label": `Showing ${label}. Click to show all recipes.` } });
     button.createSpan({ text: label });
@@ -656,9 +675,9 @@ export class RecipeImporter extends Component {
         void clear();
       }
     });
-    const after = toolbar.querySelector(".dj-base-tabs") ?? toolbar.querySelector(".bases-toolbar-views-menu");
-    if (after) after.after(chip);
-    else toolbar.prepend(chip);
+    box.appendChild(chip);
+    // The typing area starts after the chip.
+    window.requestAnimationFrame(() => box.style.setProperty("--cooklang-chip-width", `${chip!.offsetWidth}px`));
   }
 
   /** Saves which folders or tags a view shows, as its filter: none for all, "false" for none, else any of them. */

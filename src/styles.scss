@@ -1747,12 +1747,24 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-insights-bar-row.is-clickable:hover .cooklang-insights-bar-fill { background: var(--interactive-accent-hover); }
 
 // All recipes narrowed from Insights: a chip saying what it shows; tap it to show everything again.
+// The chip sits inside the search box, after the magnifier; the text you type starts after it.
+.cooklang-results-chip {
+  position: absolute;
+  left: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.cooklang-search-item .search-input-container.has-results-chip input {
+  padding-left: calc(40px + var(--cooklang-chip-width, 80px));
+}
+
 .cooklang-results-chip-button {
   display: flex;
   align-items: center;
   gap: 0.3em;
-  padding: 0.1em 0.55em;
-  margin-left: var(--size-4-2);
+  padding: 0.05em 0.5em;
   border-radius: var(--radius-l);
   background-color: var(--interactive-accent);
   color: var(--text-on-accent);
