@@ -336,7 +336,7 @@ export class RecipeImporter extends Component {
     // The browser's base, parsed, for the folder and tag views (the By tag view is added once if missing).
     if (!this.browserBase() && !this.baseLoading) {
       this.baseLoading = true;
-      void this.ensureTagView().then(() => this.ungroupTagView()).then(() => this.ensureInsightsView()).then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
+      void this.ensureRecipeFilter().then(() => this.ensureTagView()).then(() => this.ungroupTagView()).then(() => this.ensureInsightsView()).then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
     }
     this.renderSidebar(view);
     this.resultsChip(view);
@@ -523,6 +523,25 @@ export class RecipeImporter extends Component {
   }
 
   /** Adds the Insights view to a recipe browser made before it existed. Once only, so deleting it sticks. */
+  /** The browser's base-wide rule that keeps it to recipes. With no Filter button it can't be edited in the UI,
+   *  but if it goes missing from the file anyway the browser fills with every note in the vault, so put it back. */
+  private async ensureRecipeFilter() {
+    const file = this.app.vault.getAbstractFileByPath(this.browserPath());
+    if (!(file instanceof TFile)) return;
+    const has = (text: string) => {
+      const and = parseYaml(text)?.filters?.and;
+      return Array.isArray(and) && and.some((r: unknown) => typeof r === "string" && r.replace(/\s/g, "") === "recipe==true");
+    };
+    if (has(await this.app.vault.read(file))) return;
+    await this.app.vault.process(file, (text) => {
+      const data = parseYaml(text);
+      if (!data || has(text)) return text;
+      const rules = Array.isArray(data.filters?.and) ? data.filters.and : [];
+      data.filters = { and: ["recipe == true", ...rules.filter((r: unknown) => r !== "recipe == true")] };
+      return stringifyYaml(data);
+    });
+  }
+
   private async ensureInsightsView() {
     if (this.settings.insightsViewAdded) return;
     const file = this.app.vault.getAbstractFileByPath(this.browserPath());
@@ -1059,10 +1078,10 @@ export class RecipeImporter extends Component {
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
     menu.addSeparator();
     toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
-    // Phones: Sort and Filter live here, since the toolbar has no room for them. They open Bases' own menus.
+    // Phones: Sort lives here, since the toolbar has no room for it. It opens Bases' own menu.
     if (Platform.isMobile) {
       menu.addSeparator();
-      for (const [title, icon, cls] of [["Sort", "arrow-up-down", "sort"], ["Filter", "list-filter", "filter"]] as const) {
+      for (const [title, icon, cls] of [["Sort", "arrow-up-down", "sort"]] as const) {
         menu.addItem((i) => i.setTitle(title).setIcon(icon).onClick(() => {
           const button = view?.containerEl?.querySelector(`.bases-toolbar-${cls}-menu .text-icon-button`) as HTMLElement | null;
           window.setTimeout(() => button?.click(), 50);

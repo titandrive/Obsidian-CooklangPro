@@ -1275,7 +1275,9 @@ button.cook-pill.is-clickable {
 }
 
 // The recipe browser doesn't need Bases' Properties and Group buttons: the Options menu covers what cards show,
-// and the folder and tag views do the grouping.
+// and the folder and tag views do the grouping. No Filter button either: the sidebar, search and Insights filter,
+// and editing Bases' filters by hand could drop the rule that keeps the browser to recipes.
+.cooklang-recipe-browser .bases-toolbar-filter-menu,
 .cooklang-recipe-browser .bases-toolbar-properties-menu,
 .cooklang-recipe-browser .bases-toolbar-group-menu {
   display: none;
@@ -1473,14 +1475,12 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   display: none;
 }
 
-// On phones there's no room for Sort and Filter in the toolbar: they're in the Options menu instead, which clicks
-// these buttons. Keep them on the page (out of sight, at the toolbar's right end) so their menus have somewhere to
-// open from.
+// On phones there's no room for Sort in the toolbar: it's in the Options menu instead, which clicks this button.
+// Keep it on the page (out of sight, at the toolbar's right end) so its menu has somewhere to open from.
 .is-mobile .cooklang-recipe-browser {
   .bases-toolbar { position: relative; }
 
-  .bases-toolbar-sort-menu,
-  .bases-toolbar-filter-menu {
+  .bases-toolbar-sort-menu {
     display: flex !important;
     position: absolute;
     right: 0;
