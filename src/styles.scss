@@ -1728,8 +1728,8 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-insights-tile.is-clickable:hover { border-color: var(--background-modifier-border-hover); background: var(--background-modifier-hover); }
 .cooklang-insights-tile.is-clickable .cooklang-insights-tile-hint { color: var(--text-accent); }
 
-// The phone's drawer button holds its place on views without a drawer, so the other buttons stay put.
+// The phone's drawer button holds its place on views without a drawer (greyed out), so the other buttons stay put.
 .cooklang-drawer-button.is-placeholder {
-  visibility: hidden;
+  opacity: 0.3;
   pointer-events: none;
 }
