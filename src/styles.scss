@@ -1648,3 +1648,8 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-recipe-browser .bases-toolbar-results-menu {
   display: none;
 }
+
+// While switching views, the cards are hidden until the new view has drawn (see hideUntilDrawn).
+.cooklang-recipe-browser.cooklang-switching .view-content > .bases-view {
+  visibility: hidden;
+}

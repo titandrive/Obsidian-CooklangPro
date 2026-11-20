@@ -392,6 +392,29 @@ export class RecipeImporter extends Component {
   }
 
   private searchFocused = new WeakSet<object>();
+  /** Hides the browser's cards until the view named `target` is showing and has stopped redrawing (at most 1s). */
+  private hideUntilDrawn(view: any, target: string) {
+    const root: HTMLElement | undefined = view?.containerEl;
+    const cards = root?.querySelector<HTMLElement>(".view-content > .bases-view");
+    if (!root || !cards) return;
+    root.addClass("cooklang-switching");
+    let quiet = 0;
+    const done = () => {
+      observer.disconnect();
+      window.clearTimeout(quiet);
+      window.clearTimeout(fallback);
+      root.removeClass("cooklang-switching");
+    };
+    const settle = () => {
+      if (String(view?.leaf?.getViewState?.()?.state?.viewName ?? "") !== target) return;
+      window.clearTimeout(quiet);
+      quiet = window.setTimeout(done, 60);
+    };
+    const observer = new MutationObserver(settle);
+    observer.observe(cards, { childList: true, subtree: true });
+    const fallback = window.setTimeout(done, 1000);
+  }
+
   private newTabViews = new WeakSet<object>();
   private hapticViews = new WeakMap<object, string>();
   private baseLoading = false;
@@ -729,6 +752,10 @@ export class RecipeImporter extends Component {
     if (!first) return;
     this.registerDomEvent(view.containerEl, "click", (evt: MouseEvent) => {
       if ((evt.target as HTMLElement | null)?.closest(`${TAPPABLE}, .bases-cards-item, .bases-tr, .bases-toolbar-item, .recipe-importer-rating-star, .recipe-importer-favorite`)) tap();
+      // Switching views: hide the cards until the new view has drawn, so the old view doesn't flash first.
+      const tab = (evt.target as HTMLElement | null)?.closest<HTMLElement>("[data-view]");
+      const target = tab?.dataset.view;
+      if (target && target !== String(view?.leaf?.getViewState?.()?.state?.viewName ?? "")) this.hideUntilDrawn(view, target);
     }, { capture: true });
   }
 
