@@ -1642,3 +1642,9 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
     box-shadow: none;
   }
 }
+
+// No result count in the recipe browser's toolbar: the sidebar shows counts, and the search box shows its own
+// while you search.
+.cooklang-recipe-browser .bases-toolbar-results-menu {
+  display: none;
+}
