@@ -302,6 +302,9 @@ export class RecipeImporter extends Component {
       const cover: HTMLElement | undefined = item?.coverEl;
       const file = item?.entry?.file;
       if (!(cover instanceof HTMLElement)) continue;
+      // A faint chef hat stands in for a missing photo.
+      const photo = file instanceof TFile ? this.app.metadataCache.getFileCache(file)?.frontmatter?.photo : null;
+      cover.toggleClass("cooklang-no-photo", file instanceof TFile && this.isRecipe(file) && !photo);
       let badge = cover.querySelector<HTMLElement>(":scope > .cooklang-card-folder");
       const name = on && file instanceof TFile && this.isRecipe(file) ? file.parent?.name ?? "" : "";
       if (!name || file.parent?.path === normalizePath(this.settings.recipesFolder)) {
