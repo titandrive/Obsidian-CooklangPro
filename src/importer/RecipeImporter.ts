@@ -341,8 +341,8 @@ export class RecipeImporter extends Component {
   }
 
   /**
-   * While a folder or tag view shows just one folder or tag, a chip in the toolbar says which, and tapping it
-   * goes back to all of them.
+   * While a folder or tag view shows only some folders or tags, a chip in the toolbar says which ("vegan",
+   * "3 tags", "None"), and tapping it shows all of them again.
    */
   private filterChip(view: any) {
     const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
@@ -350,15 +350,16 @@ export class RecipeImporter extends Component {
     const viewName = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
     const kind = this.pickerViews().get(viewName);
     const spec = kind ? this.browserBase()?.views?.find((v: any) => v?.name === viewName) : null;
-    const rules: string[] = [];
-    const collect = (f: any) => {
-      if (typeof f === "string") rules.push(f);
-      else if (f && typeof f === "object") Object.values(f).forEach(collect);
-    };
-    collect(spec?.filters);
-    const re = kind === "tag" ? /file\.hasTag\("([^"]+)"\)/ : /file\.folder\s*==\s*"([^"]+)"/;
-    let value = kind ? rules.map((r) => re.exec(r)?.[1]).find(Boolean) ?? null : null;
-    if (value && kind === "folder") value = value.split("/").pop() ?? value;
+    const options = kind ? this.pickerOptions(kind) : [];
+    const selected = kind ? this.pickerSelection(spec, kind, options) : null;
+    // No chip when everything is shown.
+    let value: string | null = null;
+    if (kind && selected) {
+      const label = (v: string) => (kind === "folder" ? v.split("/").pop() ?? v : v);
+      value = selected.size === 0 ? "None"
+        : selected.size === 1 ? label([...selected][0])
+        : `${selected.size} ${kind === "tag" ? "tags" : "folders"}`;
+    }
 
     let chip = toolbar.querySelector<HTMLElement>(".cooklang-filter-chip");
     if (!value) {
@@ -377,7 +378,7 @@ export class RecipeImporter extends Component {
     setIcon(button.createSpan({ cls: "cooklang-filter-chip-icon" }), kind === "tag" ? "tag" : "folder");
     button.createSpan({ text: value });
     setIcon(button.createSpan({ cls: "cooklang-filter-chip-x" }), "x");
-    const clear = () => void this.setViewFilter(viewName, null);
+    const clear = () => void this.setViewFilters(viewName, null);
     button.addEventListener("click", clear);
     button.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
@@ -455,68 +456,84 @@ export class RecipeImporter extends Component {
     return data;
   }
 
+  /** The choices a picker offers: folder paths, or tags (most used first). */
+  private pickerOptions(kind: "folder" | "tag"): { value: string; label: string }[] {
+    if (kind === "tag") return this.recipeTags().map(([tag, n]) => ({ value: tag, label: `${tag} (${n})` }));
+    const root = normalizePath(this.settings.recipesFolder);
+    return this.recipeFolders()
+      .map((name) => normalizePath(`${root}/${name}`))
+      .filter((path) => this.app.vault.getAbstractFileByPath(path) instanceof TFolder)
+      .map((path) => ({ value: path, label: path.slice(root.length + 1) }));
+  }
+
+  /** The folders or tags a view is narrowed to, or null when it shows everything (no filter). */
+  private pickerSelection(spec: any, kind: "folder" | "tag", options: { value: string }[]): Set<string> | null {
+    const rules: string[] = [];
+    const collect = (f: any) => {
+      if (typeof f === "string") rules.push(f);
+      else if (f && typeof f === "object") Object.values(f).forEach(collect);
+    };
+    collect(spec?.filters);
+    if (rules.some((r) => r.trim() === "false")) return new Set();
+    const re = kind === "tag" ? /file\.hasTag\("([^"]+)"\)/ : /file\.folder\s*==\s*"([^"]+)"/;
+    const values = rules.map((r) => re.exec(r)?.[1]).filter((v): v is string => !!v);
+    if (!values.length) return null;
+    const set = new Set(values);
+    return options.every((o) => set.has(o.value)) ? null : set;
+  }
+
+  /**
+   * The folder or tag picker: tick any number of folders or tags, with Select all and Deselect all. The menu
+   * reopens after each tick so several can be changed in a row. The view shows recipes in any ticked one.
+   */
   private async openFolderMenu(view: any, viewName: string, at: { x: number; y: number }) {
     const base = await this.loadBrowserBase();
     const spec = base?.views?.find((v: any) => v?.name === viewName);
     if (!spec) return;
-    if (spec.groupBy?.property === "formula.first_tag") return this.openTagMenu(view, viewName, spec, at);
-    const rules: string[] = [];
-    const collect = (f: any) => {
-      if (typeof f === "string") rules.push(f);
-      else if (f && typeof f === "object") Object.values(f).forEach(collect);
-    };
-    collect(spec.filters);
-    const current = rules.map((r) => /file\.folder\s*==\s*"([^"]+)"/.exec(r)?.[1]).find(Boolean) ?? null;
-    const root = normalizePath(this.settings.recipesFolder);
-    const folders = this.recipeFolders()
-      .map((name) => normalizePath(`${root}/${name}`))
-      .filter((path) => this.app.vault.getAbstractFileByPath(path) instanceof TFolder);
-    const menu = new Menu();
-    menu.addItem((i) => i.setTitle("Show folder").setIsLabel(true));
-    const choose = (folder: string | null) => async () => {
-      await this.setViewFilter(viewName, folder ? `file.folder == "${folder.replace(/"/g, '\\"')}"` : null);
+    const kind: "folder" | "tag" = spec.groupBy?.property === "formula.first_tag" ? "tag" : "folder";
+    const options = this.pickerOptions(kind);
+    const selection = this.pickerSelection(spec, kind, options);
+    const selected = selection ?? new Set(options.map((o) => o.value));
+    const rule = (v: string) => (kind === "tag" ? `file.hasTag("${v.replace(/"/g, "")}")` : `file.folder == "${v.replace(/"/g, '\\"')}"`);
+    const save = async (next: Set<string>, reopen: boolean) => {
+      const chosen = options.filter((o) => next.has(o.value)).map((o) => o.value);
+      const filters = chosen.length === options.length ? null
+        : chosen.length === 0 ? { and: ["false"] }
+        : chosen.length === 1 ? { and: [rule(chosen[0])] }
+        : { or: chosen.map(rule) };
+      await this.setViewFilters(viewName, filters);
       view?.controller?.selectView?.(viewName);
+      if (reopen) window.setTimeout(() => void this.openFolderMenu(view, viewName, at), 60);
     };
-    menu.addItem((i) => i.setTitle("All folders").setIcon("folders").setChecked(current === null).onClick(choose(null)));
+    const menu = new Menu();
+    // One switch at the top: hide everything when all are shown, otherwise show everything again.
+    const noun = kind === "tag" ? "tags" : "folders";
+    const allShown = selection === null;
+    menu.addItem((i) => i.setTitle(allShown ? `Hide all ${noun}` : `Show all ${noun}`).setIcon(allShown ? "eye-off" : "eye")
+      .onClick(() => save(allShown ? new Set() : new Set(options.map((o) => o.value)), true)));
     menu.addSeparator();
-    for (const path of folders) {
-      menu.addItem((i) => i.setTitle(path.slice(root.length + 1)).setIcon("folder").setChecked(current === path).onClick(choose(current === path ? null : path)));
+    for (const o of options) {
+      menu.addItem((i) => i.setTitle(o.label).setIcon(kind === "tag" ? "tag" : "folder").setChecked(selected.has(o.value))
+        .onClick(() => {
+          hapticTap(this.host.settings.haptics !== false);
+          const next = new Set(selected);
+          if (next.has(o.value)) next.delete(o.value);
+          else next.add(o.value);
+          return save(next, true);
+        }));
     }
     menu.showAtPosition(at);
   }
 
-  /** The By tag picker: all tags, or one tag (most used first, with how many recipes have it). */
-  private openTagMenu(view: any, viewName: string, spec: any, at: { x: number; y: number }) {
-    const rules: string[] = [];
-    const collect = (f: any) => {
-      if (typeof f === "string") rules.push(f);
-      else if (f && typeof f === "object") Object.values(f).forEach(collect);
-    };
-    collect(spec.filters);
-    const current = rules.map((r) => /file\.hasTag\("([^"]+)"\)/.exec(r)?.[1]).find(Boolean) ?? null;
-    const menu = new Menu();
-    menu.addItem((i) => i.setTitle("Show tag").setIsLabel(true));
-    const choose = (tag: string | null) => async () => {
-      await this.setViewFilter(viewName, tag ? `file.hasTag("${tag.replace(/"/g, "")}")` : null);
-      view?.controller?.selectView?.(viewName);
-    };
-    menu.addItem((i) => i.setTitle("All tags").setIcon("tags").setChecked(current === null).onClick(choose(null)));
-    menu.addSeparator();
-    for (const [tag, n] of this.recipeTags()) {
-      menu.addItem((i) => i.setTitle(`${tag} (${n})`).setIcon("tag").setChecked(current === tag).onClick(choose(current === tag ? null : tag)));
-    }
-    menu.showAtPosition(at);
-  }
-
-  /** Saves (or clears) a view's one filter rule in the base file. */
-  private async setViewFilter(viewName: string, rule: string | null) {
+  /** Saves (or clears) a view's filters in the base file. */
+  private async setViewFilters(viewName: string, filters: object | null) {
     const file = this.app.vault.getAbstractFileByPath(this.browserPath());
     if (!(file instanceof TFile)) return;
     await this.app.vault.process(file, (text) => {
       const data = parseYaml(text);
       const spec = data?.views?.find((v: any) => v?.name === viewName);
       if (!spec) return text;
-      if (rule) spec.filters = { and: [rule] };
+      if (filters) spec.filters = filters;
       else delete spec.filters;
       return stringifyYaml(data);
     });
