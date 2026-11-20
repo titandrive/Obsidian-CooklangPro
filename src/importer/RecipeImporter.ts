@@ -25,6 +25,8 @@ export interface ImporterSettings {
   useClaude: boolean;
   /** The By tag view was added to an existing recipe browser (done once, so deleting it sticks). */
   tagViewAdded: boolean;
+  /** The By tag view's grouping by first tag was removed from an existing browser (done once). */
+  tagViewUngrouped: boolean;
 }
 
 export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
@@ -39,6 +41,7 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   browserNewTab: true,
   useClaude: true,
   tagViewAdded: false,
+  tagViewUngrouped: false,
 };
 
 /** What the importer needs from the CooklangPro plugin. */
@@ -132,7 +135,7 @@ function recipeBaseContent(): string {
     "views:",
     ...cards("All recipes", ["    icon: chef-hat"]),
     ...cards("By folder", ["    icon: folder", "    groupBy:", "      property: file.folder", "      direction: ASC"]),
-    ...cards("By tag", ["    icon: tag", "    groupBy:", "      property: formula.first_tag", "      direction: ASC"]),
+    ...cards("By tag", ["    icon: tag"]),
     ...cards("Favorites", ["    icon: heart", "    filters:", "      and:", "        - favorite == true"]),
     ...cards("Top rated", ["    icon: star", "    filters:", "      and:", "        - rating >= 4"], [["note.rating", "DESC"], ["file.name", "ASC"]]),
     "  - type: table",
@@ -291,7 +294,7 @@ export class RecipeImporter extends Component {
     // The browser's base, parsed, for the folder and tag views (the By tag view is added once if missing).
     if (!this.browserBase() && !this.baseLoading) {
       this.baseLoading = true;
-      void this.ensureTagView().then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
+      void this.ensureTagView().then(() => this.ungroupTagView()).then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
     }
     this.renderSidebar(view);
     const show = this.settings.cardShow;
@@ -399,7 +402,8 @@ export class RecipeImporter extends Component {
     for (const v of this.browserBase()?.views ?? []) {
       const by = v?.groupBy?.property;
       if (by === "file.folder") views.set(String(v.name), "folder");
-      else if (by === "formula.first_tag") views.set(String(v.name), "tag");
+      // The tag view: a plain list (older browsers grouped it by each recipe's first tag).
+      else if (by === "formula.first_tag" || String(v.name).toLowerCase() === "by tag") views.set(String(v.name), "tag");
     }
     return views;
   }
@@ -416,6 +420,22 @@ export class RecipeImporter extends Component {
       }
     }
     return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }
+
+  /** Older browsers grouped the By tag view by each recipe's first tag, which read as a jumble; make it a list. */
+  private async ungroupTagView() {
+    if (this.settings.tagViewUngrouped) return;
+    const file = this.app.vault.getAbstractFileByPath(this.browserPath());
+    if (!(file instanceof TFile)) return;
+    this.settings.tagViewUngrouped = true;
+    await this.saveSettings();
+    await this.app.vault.process(file, (text) => {
+      const data = parseYaml(text);
+      const view = data?.views?.find((v: any) => v?.groupBy?.property === "formula.first_tag");
+      if (!view) return text;
+      delete view.groupBy;
+      return stringifyYaml(data);
+    });
   }
 
   /** Adds the By tag view to a recipe browser made before it existed. Once only, so deleting it sticks. */
@@ -435,8 +455,8 @@ export class RecipeImporter extends Component {
         ...(folderView ?? { type: "cards", image: "note.photo", cardSize: 200, order: ["file.name", "formula.details", "note.tags"] }),
         name: "By tag",
         icon: "tag",
-        groupBy: { property: "formula.first_tag", direction: "ASC" },
       };
+      delete tagView.groupBy;
       delete tagView.filters;
       const at = folderView ? data.views.indexOf(folderView) + 1 : data.views.length;
       data.views.splice(at, 0, tagView);
