@@ -21,7 +21,7 @@
 - **Recipe browser**: an Obsidian base of every recipe.
   - Photo cards with the heart and stars over the photo.
   - Views: all recipes, by folder, favorites, top rated, and a table.
-  - A Show menu on the toolbar picks what the cards show (heart, stars, time, servings, tags).
+  - An Options menu (settings cog) on the toolbar picks what the cards show (heart, stars, folder, time, servings, tags) and whether recipes open in a new tab.
   - Recipes open in a new tab, which you can turn off.
 - **Favorites and ratings**: a heart and 1 to 5 stars under each recipe's title and on every browser card, saved as `favorite` and `rating` properties.
 - **Set recipe photo** (command or file menu): from a link, a file, a pasted image or the phone's camera. Photos are resized and saved in a photos folder or beside the recipe, as you choose in settings.

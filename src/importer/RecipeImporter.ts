@@ -17,7 +17,7 @@ export interface ImporterSettings {
   photoLocation: "beside" | "folder";
   /** Vault path of the photos folder when `photoLocation` is "folder", e.g. "Recipes/Photos". */
   photosFolder: string;
-  /** What the recipe browser's cards show, set from its "Show" toolbar menu. */
+  /** What the recipe browser's cards show, set from its "Options" toolbar menu. */
   cardShow: { heart: boolean; stars: boolean; time: boolean; servings: boolean; folder: boolean };
   /** Clicking a recipe in the recipe browser opens it in a new tab instead of the browser's tab. */
   browserNewTab: boolean;
@@ -292,7 +292,7 @@ export class RecipeImporter extends Component {
     this.renderCardDetails(view);
   }
 
-  /** The recipe's folder as a small badge in the top-left corner of each card's photo (Show menu: Folder). */
+  /** The recipe's folder as a small badge in the top-left corner of each card's photo (Options menu: Folder). */
   private renderFolderBadges(view: any, on: boolean) {
     const items: any[] = view?.controller?.view?.items ?? [];
     // Not in views grouped by folder: the group headings already say it.
@@ -614,7 +614,7 @@ export class RecipeImporter extends Component {
     }, { capture: true });
   }
 
-  /** Card details line: time and/or servings, as chosen in the Show menu. */
+  /** Card details line: time and/or servings, as chosen in the Options menu. */
   private renderCardDetails(view: any) {
     const items: any[] = view?.controller?.view?.items ?? [];
     const show = this.settings.cardShow;
@@ -642,14 +642,14 @@ export class RecipeImporter extends Component {
     }
   }
 
-  /** A "Show" button in the recipe browser's toolbar, next to Sort. */
+  /** An "Options" button in the recipe browser's toolbar, next to Sort. */
   private addShowButton(view: any) {
     const toolbar: HTMLElement | null = view?.containerEl?.querySelector(".bases-toolbar");
     if (!toolbar || toolbar.querySelector(".cooklang-show-menu")) return;
     const item = createDiv({ cls: "bases-toolbar-item cooklang-show-menu" });
-    const button = item.createDiv({ cls: "text-icon-button", attr: { tabindex: "0", "aria-label": "Show or hide card details" } });
-    setIcon(button.createSpan({ cls: "text-button-icon" }), "eye");
-    button.createSpan({ cls: "text-button-label", text: "Show" });
+    const button = item.createDiv({ cls: "text-icon-button", attr: { tabindex: "0", "aria-label": "Recipe browser options" } });
+    setIcon(button.createSpan({ cls: "text-button-icon" }), "settings");
+    button.createSpan({ cls: "text-button-label", text: "Options" });
     button.addEventListener("click", (evt) => this.openShowMenu(view, evt));
     toolbar.insertBefore(item, toolbar.querySelector(".bases-toolbar-sort-menu"));
   }
