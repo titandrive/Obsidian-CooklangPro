@@ -27,7 +27,7 @@ tags: [<tags>]
 
 <steps>
 
-Tags, lowercase, hyphens for spaces, only those that apply: the cuisine (italian, mexican, chinese, korean, japanese, thai, indian, american, french, spanish, greek, middle-eastern...), vegan or vegetarian (only when true; vegetarian only if not vegan), the main protein (chicken, beef, pork, shrimp, fish, tofu, tvp, lentils), and the method when it matters (slow-cooker, instant-pot, air-fryer). Plain desserts and baked goods may have no tags.
+Tags, lowercase, hyphens for spaces, only those that apply: the cuisine (italian, mexican, chinese, korean, japanese, thai, indian, french, spanish, greek, middle-eastern...), vegan or vegetarian (only when true; vegetarian only if not vegan), the main protein (chicken, beef, pork, shrimp, fish, tofu, tvp, lentils), and the method when it matters (slow-cooker, instant-pot, air-fryer). Plain desserts and baked goods may have no tags; never tag them vegetarian (vegan is fine). Don't tag american.
 
 Body rules:
 - Each step is one paragraph; blank line between steps. Keep the author's wording; drop ads, life stories, "jump to recipe" and similar junk.
