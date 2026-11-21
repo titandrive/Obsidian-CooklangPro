@@ -235,11 +235,24 @@ export class RecipeInsightsView extends BasesView {
       // "Websites" sits beside its number.
       sources.tile("Websites", String(new Set(sites.filter(Boolean)).size), `${sites.filter(Boolean).length} recipes with a link`)
         .addClass("is-inline-label");
-      // "8 recipes", then "Without a link" under it as the link to them.
+      // "8 recipes", then "Without a link" under it: just those words are the link to them (not the whole tile).
       const noLink = recipes.filter((r) => !site(r));
-      sources.tile(noLink.length === 1 ? "recipe" : "recipes", String(noLink.length), "Without a link", undefined,
-        noLink.length ? () => this.actions.filter("No source", noLink.map((r) => r.file)) : undefined)
-        .addClass("is-inline-label");
+      const tile = sources.tile(noLink.length === 1 ? "recipe" : "recipes", String(noLink.length), "Without a link");
+      tile.addClass("is-inline-label");
+      const words = tile.querySelector<HTMLElement>(".cooklang-insights-tile-hint");
+      if (words && noLink.length) {
+        words.addClass("is-link");
+        words.setAttr("role", "button");
+        words.setAttr("tabindex", "0");
+        const show = () => this.actions.filter("No source", noLink.map((r) => r.file));
+        words.addEventListener("click", show);
+        words.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            show();
+          }
+        });
+      }
       this.bars(sources.card("Top sources"), topSites);
     }
 
