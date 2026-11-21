@@ -1676,10 +1676,11 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 .cooklang-recipe-browser {
   --bases-cards-line-height: 20px;
 
-  // The tags line sits 6px higher, so it's as close to the time and servings as they are to the title.
-  .bases-cards-property[data-property="note.tags"] .bases-cards-line {
-    position: relative;
-    top: -6px;
+  // The tags line sits 6px higher, so it's as close to the time and servings as they are to the title. The whole
+  // line moves (not the text inside it, which its box would clip at the top on phones' larger text).
+  .bases-cards-property[data-property="note.tags"] {
+    transform: translateY(-6px);
+    overflow: visible;
   }
 
   // The title keeps its full height, spilling a few pixels into the gap below so descenders aren't cut.
@@ -1805,4 +1806,13 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 // Phones too narrow for every toolbar button: Filter moves into the Options menu.
 .cooklang-recipe-browser .bases-toolbar.cooklang-filter-folded .cooklang-filter-menu {
   display: none;
+}
+
+// Phones: each tag on a card gets a taller tap area than its text, without moving anything.
+.is-mobile .cooklang-recipe-browser .bases-cards-property[data-property="note.tags"] a.tag {
+  display: inline-block;
+  padding-block: 10px;
+  margin-block: -10px;
+  position: relative;
+  z-index: 1;
 }
