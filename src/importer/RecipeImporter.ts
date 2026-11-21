@@ -982,9 +982,21 @@ export class RecipeImporter extends Component {
     if (!el || this.newTabViews.has(view)) return;
     this.newTabViews.add(view);
     this.registerDomEvent(el, "click", (evt: MouseEvent) => {
-      if (!this.settings.browserNewTab || evt.ctrlKey || evt.metaKey || evt.shiftKey || evt.altKey) return;
       if (!(view?.file instanceof TFile) || view.file.path !== this.browserPath()) return;
       const target = evt.target as HTMLElement | null;
+      // A tag on a card shows the By tag view with just that tag picked (rather than opening the recipe).
+      const tag = target?.closest<HTMLElement>(".bases-cards-item a.tag, .bases-td a.tag");
+      if (tag) {
+        const name = [...this.pickerViews()].find(([, k]) => k === "tag")?.[0];
+        const value = (tag.getAttr("href") || tag.innerText).replace(/^#/, "").trim();
+        if (name && value) {
+          evt.preventDefault();
+          evt.stopPropagation();
+          void this.applySelection(view, name, "tag", this.pickerOptions("tag"), new Set([value]));
+          return;
+        }
+      }
+      if (!this.settings.browserNewTab || evt.ctrlKey || evt.metaKey || evt.shiftKey || evt.altKey) return;
       // The heart and stars handle their own clicks; leave toolbar, menus and editable cells alone.
       if (!target || target.closest(".recipe-importer-rating, .bases-toolbar, input, textarea, [contenteditable]")) return;
       const card = target.closest<HTMLElement>(".bases-cards-item");
