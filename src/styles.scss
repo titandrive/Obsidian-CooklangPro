@@ -1709,6 +1709,9 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 // A tile whose label sits beside its number, e.g. "8 Websites".
 .cooklang-insights-tile.is-inline-label { display: grid; grid-template-columns: auto 1fr; column-gap: 0.4em; align-items: baseline; }
 .cooklang-insights-tile.is-inline-label .cooklang-insights-tile-hint { grid-column: 1 / -1; }
+// A clickable tile whose label reads as the link.
+.cooklang-insights-tile.is-link-label.is-clickable .cooklang-insights-tile-label { color: var(--text-accent); }
+.cooklang-insights-tile.is-link-label.is-clickable:hover .cooklang-insights-tile-label { text-decoration: underline; }
 .cooklang-insights-tile-hint { color: var(--text-faint); font-size: var(--font-ui-smaller); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cooklang-insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--size-4-3); align-items: stretch; }
 .cooklang-insights-card { padding: var(--size-4-3) var(--size-4-4) var(--size-4-4); min-width: 0; }
