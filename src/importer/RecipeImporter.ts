@@ -1652,15 +1652,30 @@ class ImportModal extends Modal {
       input.value = link;
       url = link;
       window.clearTimeout(timer);
+      syncPaste();
       void runCheck();
     };
-    linkSetting.addExtraButton((b) =>
-      b.setIcon("clipboard-paste").setTooltip("Paste link").onClick(async () => {
+    // Paste while the box is empty; once it has something, the same button clears it.
+    let pasteButton!: import("obsidian").ExtraButtonComponent;
+    const syncPaste = () => {
+      const full = !!input.value;
+      pasteButton.setIcon(full ? "x" : "clipboard-paste").setTooltip(full ? "Clear" : "Paste link");
+    };
+    linkSetting.addExtraButton((b) => {
+      pasteButton = b;
+      b.onClick(async () => {
+        if (input.value) {
+          useLink("");
+          if (!Platform.isMobile) input.focus();
+          return;
+        }
         const link = await clipboardLink();
         if (link) useLink(link);
         else new Notice("There's no link in the clipboard.");
-      }),
-    );
+      });
+    });
+    input.addEventListener("input", () => syncPaste());
+    syncPaste();
     const check = contentEl.createDiv({ cls: "recipe-importer-check" });
     let button!: import("obsidian").ButtonComponent;
     const actions = new Setting(contentEl).addButton((b) => {
@@ -1746,6 +1761,7 @@ class ImportModal extends Modal {
     });
     input.addEventListener("paste", () => window.setTimeout(() => {
       url = input.value;
+      syncPaste();
       window.clearTimeout(timer);
       void runCheck();
     }, 0));
