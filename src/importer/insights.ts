@@ -108,7 +108,7 @@ export class RecipeInsightsView extends BasesView {
       return {
         el: sec,
         /** `icon`: a small icon before the label. `onClick`: the tile becomes a button. */
-        tile(label: string, value: string, hint?: string, icon?: string, onClick?: (evt: MouseEvent) => void) {
+        tile(label: string, value: string, hint?: string, icon?: string, onClick?: (evt: MouseEvent) => void): HTMLElement {
           tiles ??= sec.createDiv({ cls: "cooklang-insights-tiles" });
           const t = tiles.createDiv({ cls: "cooklang-insights-tile" });
           t.createDiv({ cls: "cooklang-insights-tile-value", text: value });
@@ -129,6 +129,7 @@ export class RecipeInsightsView extends BasesView {
               }
             });
           }
+          return t;
         },
         card(title: string, note?: string, icon?: string) {
           grid ??= sec.createDiv({ cls: "cooklang-insights-grid" });
@@ -231,8 +232,13 @@ export class RecipeInsightsView extends BasesView {
     const sites = recipes.map(site);
     const topSites = rankedRecipes(recipes, (r) => [site(r)], 8);
     if (topSites.length) {
-      sources.tile("Websites", String(new Set(sites.filter(Boolean)).size), `${sites.filter(Boolean).length} recipes with a link`);
-      sources.tile("Without a link", String(sites.filter((s) => !s).length));
+      // "Websites" sits beside its number.
+      sources.tile("Websites", String(new Set(sites.filter(Boolean)).size), `${sites.filter(Boolean).length} recipes with a link`)
+        .addClass("is-inline-label");
+      // Like With photos: when some have no link, the tile lists them.
+      const noLink = recipes.filter((r) => !site(r));
+      sources.tile("Without a link", String(noLink.length), noLink.length ? "show" : undefined, undefined,
+        noLink.length ? () => this.actions.filter("No source", noLink.map((r) => r.file)) : undefined);
       this.bars(sources.card("Top sources"), topSites);
     }
 
