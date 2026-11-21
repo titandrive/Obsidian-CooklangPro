@@ -172,12 +172,9 @@ export class RecipeInsightsView extends BasesView {
     // Diets from settings, each a set of tags. A recipe can fit more than one.
     const diets = this.actions.diets().map((d) => ({ diet: d, files: recipes.filter((r) => fitsDiet(d, r.tags)).map((r) => r.file) }));
     if (diets.some((d) => d.files.length)) {
-      const none = recipes.filter((r) => !diets.some((d) => fitsDiet(d.diet, r.tags)));
       const pct = (n: number) => `${n} · ${Math.round((100 * n) / recipes.length)}%`;
-      this.bars(collection.card("Diet", "From tags"), [
-        ...diets.map(({ diet, files }) => ({ label: diet.name.trim(), value: files.length, text: pct(files.length), files })),
-        { label: "None of these", value: none.length, text: pct(none.length), files: none.map((r) => r.file) },
-      ], (row) => (row.label === "None of these" ? "No diet" : row.label));
+      this.bars(collection.card("Diet", "From tags"),
+        diets.map(({ diet, files }) => ({ label: diet.name.trim(), value: files.length, text: pct(files.length), files })));
     }
 
     // Ratings
