@@ -235,11 +235,11 @@ export class RecipeInsightsView extends BasesView {
       // "Websites" sits beside its number.
       sources.tile("Websites", String(new Set(sites.filter(Boolean)).size), `${sites.filter(Boolean).length} recipes with a link`)
         .addClass("is-inline-label");
-      // "Without a link" is itself the link: it shows the recipes that have no source.
+      // "8 recipes", then "Without a link" under it as the link to them.
       const noLink = recipes.filter((r) => !site(r));
-      const without = sources.tile("Without a link", String(noLink.length), undefined, undefined,
-        noLink.length ? () => this.actions.filter("No source", noLink.map((r) => r.file)) : undefined);
-      without.addClass("is-link-label");
+      sources.tile(noLink.length === 1 ? "recipe" : "recipes", String(noLink.length), "Without a link", undefined,
+        noLink.length ? () => this.actions.filter("No source", noLink.map((r) => r.file)) : undefined)
+        .addClass("is-inline-label");
       this.bars(sources.card("Top sources"), topSites);
     }
 
