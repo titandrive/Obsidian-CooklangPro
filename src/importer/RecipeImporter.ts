@@ -1078,6 +1078,13 @@ export class RecipeImporter extends Component {
 
   private foldWatched = new WeakSet<HTMLElement>();
 
+  /** The browser view on screen filters by a minimum rating ("rating >= 4"), like Top rated. */
+  private isRatingView(view: any): boolean {
+    const viewName = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
+    const and = this.browserBase()?.views?.find((v: any) => v?.name === viewName)?.filters?.and;
+    return Array.isArray(and) && and.some((r: unknown) => typeof r === "string" && /^\s*rating\s*>=\s*\d+\s*$/.test(r));
+  }
+
   /** Recipe filters: favorites, rating, time, diet, missing photo. Picking one shows those recipes in All recipes, with
    *  a chip in the search box to clear it (the same as clicking a bar in Insights). */
   private openFilterMenu(view: any, evt: MouseEvent) {
@@ -1104,11 +1111,18 @@ export class RecipeImporter extends Component {
     const header = (title: string) => menu.addItem((i) => i.setTitle(title).setIsLabel(true));
     add("Favorites", "heart", (r) => r.fm.favorite === true);
     menu.addSeparator();
-    header("Rating");
+    header(this.isRatingView(view) ? `Rating: ${String(view?.leaf?.getViewState?.()?.state?.viewName ?? "")} shows` : "Rating");
     // One row of five stars: tap the third for 3 stars and up, the fifth for 5 stars only.
     const starLabel = (n: number) => (n === 5 ? "★★★★★" : `${"★".repeat(n)} and up`);
     const starFiles = (n: number) => recipes.filter((r) => (n === 5 ? Math.round(r.rating) === 5 : r.rating >= n)).map((r) => r.file);
-    const picked = [1, 2, 3, 4, 5].find((n) => current === starLabel(n)) ?? 0;
+    // On a view that is itself a rating view (Top rated: "rating >= 4"), the stars set that view's minimum rating
+    // instead, saved with the view.
+    const viewName = String(view?.leaf?.getViewState?.()?.state?.viewName ?? "");
+    const viewSpec = this.browserBase()?.views?.find((v: any) => v?.name === viewName);
+    const viewRules: string[] = Array.isArray(viewSpec?.filters?.and) ? viewSpec.filters.and.filter((r: unknown) => typeof r === "string") : [];
+    const ratingRule = viewRules.find((r) => /^\s*rating\s*>=\s*\d+\s*$/.test(r));
+    const minimum = ratingRule ? Number(/\d+/.exec(ratingRule)![0]) : 0;
+    const picked = ratingRule ? minimum : [1, 2, 3, 4, 5].find((n) => current === starLabel(n)) ?? 0;
     menu.addItem((i) => {
       const row = createSpan({ cls: "cooklang-star-filter" });
       const stars = [1, 2, 3, 4, 5].map((n) => {
@@ -1120,6 +1134,10 @@ export class RecipeImporter extends Component {
           evt.preventDefault();
           evt.stopPropagation();
           menu.hide();
+          if (ratingRule) {
+            void this.setViewFilters(viewName, { and: viewRules.map((r) => (r === ratingRule ? `rating >= ${n}` : r)) });
+            return;
+          }
           void this.showResults(view?.controller, starLabel(n), files);
         });
         return star;
