@@ -1105,9 +1105,34 @@ export class RecipeImporter extends Component {
     add("Favorites", "heart", (r) => r.fm.favorite === true);
     menu.addSeparator();
     header("Rating");
-    add("★★★★★", "star", (r) => Math.round(r.rating) === 5);
-    add("★★★★ and up", "star", (r) => r.rating >= 4);
-    add("★★★ and up", "star", (r) => r.rating >= 3);
+    // One row of five stars: tap the third for 3 stars and up, the fifth for 5 stars only.
+    const starLabel = (n: number) => (n === 5 ? "★★★★★" : `${"★".repeat(n)} and up`);
+    const starFiles = (n: number) => recipes.filter((r) => (n === 5 ? Math.round(r.rating) === 5 : r.rating >= n)).map((r) => r.file);
+    const picked = [1, 2, 3, 4, 5].find((n) => current === starLabel(n)) ?? 0;
+    menu.addItem((i) => {
+      const row = createSpan({ cls: "cooklang-star-filter" });
+      const stars = [1, 2, 3, 4, 5].map((n) => {
+        const files = starFiles(n);
+        const star = row.createSpan({ cls: "cooklang-star-filter-star", attr: { "aria-label": `${starLabel(n)} (${files.length})`, "data-tooltip-position": "top" } });
+        setIcon(star, "star");
+        star.toggleClass("is-empty", !files.length);
+        star.addEventListener("click", (evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          menu.hide();
+          void this.showResults(view?.controller, starLabel(n), files);
+        });
+        return star;
+      });
+      const fill = (upTo: number) => stars.forEach((st, k) => st.toggleClass("is-filled", k < upTo));
+      fill(picked);
+      stars.forEach((st, k) => st.addEventListener("mouseenter", () => fill(k + 1)));
+      row.addEventListener("mouseleave", () => fill(picked));
+      const frag = createFragment();
+      frag.appendChild(row);
+      i.setTitle(frag).setIcon("star");
+      (i as any).dom?.addClass("cooklang-star-filter-item");
+    });
     add("Not rated", "star-off", (r) => !(r.rating > 0));
     menu.addSeparator();
     header("Time");

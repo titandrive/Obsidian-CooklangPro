@@ -1825,3 +1825,37 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   position: relative;
   z-index: 1;
 }
+
+// The Filter menu's rating row: five stars, filled up to the one picked (or hovered).
+.cooklang-star-filter {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.cooklang-star-filter-star {
+  display: inline-flex;
+  padding: 2px;
+  margin: -2px 0;
+  border-radius: var(--radius-s);
+  cursor: var(--cursor);
+  color: var(--text-faint);
+  --icon-size: var(--icon-s);
+
+  &.is-filled {
+    color: var(--color-yellow);
+
+    svg { fill: currentColor; }
+  }
+
+  &.is-empty { opacity: 0.5; }
+}
+
+.is-mobile .cooklang-star-filter {
+  gap: 6px;
+
+  .cooklang-star-filter-star {
+    padding: 6px;
+    margin: -6px 0;
+    --icon-size: var(--icon-m);
+  }
+}
