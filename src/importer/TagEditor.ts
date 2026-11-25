@@ -74,7 +74,7 @@ export class TagEditorModal extends Modal {
   constructor(
     app: App,
     private files: TFile[],
-    /** Every recipe tag with how many recipes use it, A to Z, for suggestions. */
+    /** Every recipe tag with how many recipes use it, most used first, for suggestions. */
     private knownTags: () => [string, number][],
   ) {
     super(app);
