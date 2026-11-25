@@ -570,7 +570,7 @@ export class RecipeImporter extends Component {
     return views;
   }
 
-  /** Every tag used by a recipe, with how many recipes use it, most used first. */
+  /** Every tag used by a recipe, with how many recipes use it, A to Z. */
   private recipeTags(): [string, number][] {
     const counts = new Map<string, number>();
     for (const file of this.app.vault.getMarkdownFiles()) {
@@ -581,7 +581,8 @@ export class RecipeImporter extends Component {
         counts.set(t as string, (counts.get(t as string) ?? 0) + 1);
       }
     }
-    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    // A to Z (shown with how many recipes use each).
+    return [...counts].sort((a, b) => a[0].localeCompare(b[0]) || b[1] - a[1]);
   }
 
   /** Adds the Insights view to a recipe browser made before it existed. Once only, so deleting it sticks. */
