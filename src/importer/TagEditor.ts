@@ -13,6 +13,8 @@ import { applyTagStates, initialStates, normalizeTag, readTags, tagsChanged, typ
 
 class TagSuggest extends AbstractInputSuggest<[string, number]> {
   isShown = false;
+  /** Down arrow in the empty box lists every tag; otherwise the list waits for typing. */
+  browsing = false;
 
   constructor(
     app: App,
@@ -28,7 +30,7 @@ class TagSuggest extends AbstractInputSuggest<[string, number]> {
     const q = normalizeTag(query);
     const taken = this.taken();
     const all = this.tags().filter(([t]) => !taken.has(t));
-    if (!q) return all.slice(0, 30);
+    if (!q) return this.browsing ? all.slice(0, 30) : [];
     // Tags starting with what's typed first, then ones containing it.
     const starts = all.filter(([t]) => t.startsWith(q));
     const contains = all.filter(([t]) => !t.startsWith(q) && t.includes(q));
@@ -55,6 +57,7 @@ class TagSuggest extends AbstractInputSuggest<[string, number]> {
   close(): void {
     super.close();
     this.isShown = false;
+    this.browsing = false;
   }
 }
 
@@ -109,10 +112,16 @@ export class TagEditorModal extends Modal {
     new ButtonComponent(buttons).setButtonText("Cancel").onClick(() => this.close());
     const mod = Platform.isMacOS ? "⌘" : "Ctrl";
     if (!Platform.isMobile) {
-      contentEl.createDiv({ cls: "cooklang-tag-editor-keys", text: `Enter add   ·   ${mod}+Enter save   ·   Esc close` });
+      contentEl.createDiv({ cls: "cooklang-tag-editor-keys", text: `Enter add   ·   ↓ all tags   ·   ${mod}+Enter save   ·   Esc close` });
     }
 
     this.input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" && !this.input.value && !this.suggest.isShown) {
+        e.preventDefault();
+        this.suggest.browsing = true;
+        this.input.dispatchEvent(new Event("input"));
+        return;
+      }
       if (e.key === "," || (e.key === " " && !this.suggest.isShown)) {
         // A comma (or a space) finishes a tag, like in most tag boxes.
         if (this.input.value.trim()) {
