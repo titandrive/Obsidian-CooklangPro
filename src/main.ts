@@ -113,7 +113,7 @@ export default class CookPlugin extends Plugin {
     this.recipeHost = new ObsidianRecipeHost(this.app, (leaf, reference) => {
       const file = this.app.vault.getAbstractFileByPath(reference.targetPath);
       if (file instanceof TFile) void this.openAsRecipe(leaf, file, reference.scaleRequest);
-    });
+    }, file => this.importer?.openTagEditor([file]));
     this.register(() => {
       for (const child of this.renderChildren) child.unload();
       this.renderChildren.clear();

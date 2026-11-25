@@ -37,6 +37,8 @@ export interface RecipeHostAdapter {
     setRecipeMark?(file: TFile, key: 'favorite' | 'rating', value: boolean | number): Promise<void>;
     /** Searches the vault for a tag. */
     searchTag?(tag: string): void;
+    /** Opens the tag editor for a recipe. */
+    editTags?(file: TFile): void;
 }
 
 export interface TimerController {

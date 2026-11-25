@@ -8,7 +8,15 @@ import type {
 } from './types';
 
 export class ObsidianRecipeHost implements RecipeHostAdapter {
-    constructor(private app: App, private onOpenRecipe?: (leaf: WorkspaceLeaf, reference: ResolvedRecipeReference) => void) {}
+    constructor(
+        private app: App,
+        private onOpenRecipe?: (leaf: WorkspaceLeaf, reference: ResolvedRecipeReference) => void,
+        private onEditTags?: (file: TFile) => void,
+    ) {}
+
+    editTags(file: TFile): void {
+        this.onEditTags?.(file);
+    }
 
     getResourcePath(file: TFile): string {
         return this.app.vault.getResourcePath(file);

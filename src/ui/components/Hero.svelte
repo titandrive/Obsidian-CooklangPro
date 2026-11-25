@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { TFile } from 'obsidian';
+    import { setIcon, type TFile } from 'obsidian';
     import { buildMetaPills } from '../../utils/heroModel';
     import type { RecipeRenderModel } from '../types';
     import { recipeName } from '../../utils/recipeFiles';
@@ -12,6 +12,18 @@
     // Details (time, servings, source...) on one line, tags on the next.
     let pills = $derived(allPills.filter(pill => pill.kind !== 'tag'));
     let tags = $derived(allPills.filter(pill => pill.kind === 'tag'));
+    let canEditTags = $derived(!!(model.interactive && model.file && model.host.editTags));
+    /** Puts an Obsidian icon at the start of the element. */
+    function icon(node: HTMLElement, name: string) {
+        const span = document.createElement('span');
+        span.className = 'cook-pill-icon-svg';
+        node.prepend(span);
+        setIcon(span, name);
+        return {
+            update(next: string) { span.replaceChildren(); setIcon(span, next); },
+            destroy() { span.remove(); },
+        };
+    }
     let mainImageUrl = $derived(
         typeof mainImage === 'string' ? mainImage : mainImage ? model.host.getResourcePath(mainImage) : null
     );
@@ -45,7 +57,7 @@
                 {/each}
             </div>
         {/if}
-        {#if tags.length}
+        {#if tags.length || canEditTags}
             <div class="cook-pills cook-tags" aria-label="Tags">
                 {#each tags as pill}
                     {#if model.interactive && model.host.searchTag}
@@ -59,6 +71,16 @@
                         <span class="cook-pill cook-pill-tag">{pill.text}</span>
                     {/if}
                 {/each}
+                {#if canEditTags}
+                    <button
+                        type="button"
+                        class="cook-pill cook-pill-edit-tags is-clickable"
+                        aria-label={tags.length ? 'Edit tags' : 'Add tags'}
+                        title={tags.length ? 'Edit tags' : 'Add tags'}
+                        onclick={() => model.file && model.host.editTags?.(model.file)}
+                        use:icon={tags.length ? 'pencil' : 'plus'}
+                    >{#if !tags.length}<span>Add tags</span>{/if}</button>
+                {/if}
             </div>
         {/if}
         <RecipeMarks {model} />

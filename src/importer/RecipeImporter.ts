@@ -8,6 +8,7 @@ import { INSIGHTS_VIEW, RecipeInsightsView } from "./insights";
 import { syncBrowserRows } from "./rating";
 import { type Diet, dietTags, fitsDiet } from "./diets";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
+import { TagEditorModal } from "./TagEditor";
 
 export interface ImporterSettings {
   recipesFolder: string;
@@ -275,9 +276,54 @@ export class RecipeImporter extends Component {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
         if (!(file instanceof TFile) || !this.isRecipe(file)) return;
+        // Right-clicked on a card in the recipe browser: tag edits cover the selection when the card is in it.
+        const card = this.menuCard?.path === file.path ? this.menuCard : null;
+        this.menuCard = null;
+        const group = card && this.selected.has(file.path) && this.selected.size > 1 ? this.selectedFiles() : [file];
+        menu.addItem((item) =>
+          item
+            .setTitle(group.length > 1 ? `Edit tags (${group.length} recipes)` : "Edit tags")
+            .setIcon("tags")
+            .onClick(() => this.openTagEditor(group)),
+        );
+        if (card) {
+          const picked = this.selected.has(file.path);
+          menu.addItem((item) =>
+            item
+              .setTitle(picked ? "Deselect" : "Select")
+              .setIcon(picked ? "square" : "check-square")
+              .onClick(() => {
+                this.toggleSelected(file.path);
+                this.refreshBrowsers();
+              }),
+          );
+        }
         menu.addItem((item) => item.setTitle("Set recipe photo").setIcon("image").onClick(() => this.openPhotoModal(file)));
       }),
     );
+    // Several files selected in the file explorer.
+    this.registerEvent(
+      this.app.workspace.on("files-menu", (menu, files) => {
+        const recipes = files.filter((f): f is TFile => f instanceof TFile && this.isRecipe(f));
+        if (!recipes.length) return;
+        menu.addItem((item) =>
+          item
+            .setTitle(recipes.length > 1 ? `Edit tags (${recipes.length} recipes)` : "Edit tags")
+            .setIcon("tags")
+            .onClick(() => this.openTagEditor(recipes)),
+        );
+      }),
+    );
+    this.host.addCommand({
+      id: "edit-recipe-tags",
+      name: "Edit recipe tags",
+      checkCallback: (checking) => {
+        const files = this.tagTargets();
+        if (!files.length) return false;
+        if (!checking) this.openTagEditor(files);
+        return true;
+      },
+    });
     this.host.addCommand({
       id: "open-recipe-browser",
       name: "Open recipe browser",
@@ -412,6 +458,7 @@ export class RecipeImporter extends Component {
     this.addImportButton(view);
     this.foldFilterButton(view);
     this.renderCardDetails(view);
+    this.paintSelection(view);
   }
 
   /** The recipe's folder as a small badge in the top-left corner of each card's photo (Options menu: Folder). */
@@ -451,6 +498,8 @@ export class RecipeImporter extends Component {
    * Import, the drawer button, the sidebar, the moved search box) so that base looks as it normally does.
    */
   private clearBrowserExtras(el: HTMLElement) {
+    el.querySelectorAll(".cooklang-selection-bar").forEach((n) => n.remove());
+    el.querySelectorAll(".cooklang-selected").forEach((n) => n.removeClass("cooklang-selected"));
     if (!el.querySelector(".cooklang-show-menu, .cooklang-filter-menu, .cooklang-import-button, .cooklang-search-item, .cooklang-drawer-button, .cooklang-sidebar, .cooklang-results-chip")
       && !el.hasClass("cooklang-search-always")) return;
     this.placeSearchBox(el, false);
@@ -511,6 +560,11 @@ export class RecipeImporter extends Component {
   }
 
   private newTabViews = new WeakSet<object>();
+  /** Recipes selected in the recipe browser (Ctrl/Cmd+click, Shift+click, or Select in a card's menu), by path. */
+  private selected = new Set<string>();
+  private lastSelected: string | null = null;
+  /** The card last right-clicked in the browser, so the file menu knows it came from a card. */
+  private menuCard: { path: string } | null = null;
   private hapticViews = new WeakMap<object, string>();
   private baseLoading = false;
 
@@ -981,6 +1035,20 @@ export class RecipeImporter extends Component {
     const el: HTMLElement | undefined = view?.containerEl;
     if (!el || this.newTabViews.has(view)) return;
     this.newTabViews.add(view);
+    // Note which card a right-click is on, before Bases opens the file menu for it.
+    this.registerDomEvent(el, "contextmenu", (evt: MouseEvent) => {
+      const host = (evt.target as HTMLElement | null)?.closest<HTMLElement>(".bases-cards-item, .bases-tr");
+      const file = host ? this.fileForEl(view, host) : null;
+      this.menuCard = file ? { path: file.path } : null;
+    }, { capture: true });
+    // Escape clears the selection.
+    this.registerDomEvent(el, "keydown", (evt: KeyboardEvent) => {
+      if (evt.key !== "Escape" || !this.selected.size) return;
+      if ((evt.target as HTMLElement | null)?.closest("input, textarea") && (evt.target as HTMLInputElement).value) return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.clearSelection();
+    });
     this.registerDomEvent(el, "click", (evt: MouseEvent) => {
       if (!(view?.file instanceof TFile) || view.file.path !== this.browserPath()) return;
       const target = evt.target as HTMLElement | null;
@@ -993,6 +1061,21 @@ export class RecipeImporter extends Component {
           evt.preventDefault();
           evt.stopPropagation();
           void this.applySelection(view, name, "tag", this.pickerOptions("tag"), new Set([value]));
+          return;
+        }
+      }
+      // Selecting: Ctrl/Cmd+click toggles a card, Shift+click selects a run of cards, and while any are selected
+      // a plain click toggles too (so it works by tapping on phones, after Select in a card's menu).
+      const pickEl = target?.closest<HTMLElement>(".bases-cards-item, .bases-tr");
+      if (pickEl && !target!.closest(".recipe-importer-rating, input, textarea, [contenteditable]")
+          && (evt.ctrlKey || evt.metaKey || evt.shiftKey || this.selected.size > 0)) {
+        const picked = this.fileForEl(view, pickEl);
+        if (picked && this.isRecipe(picked)) {
+          evt.preventDefault();
+          evt.stopPropagation();
+          if (evt.shiftKey && this.lastSelected) this.selectRange(view, this.lastSelected, picked.path);
+          else this.toggleSelected(picked.path);
+          this.paintSelection(view);
           return;
         }
       }
@@ -1017,6 +1100,94 @@ export class RecipeImporter extends Component {
       const newLeaf = parent && index >= 0 ? ws.createLeafInParent(parent, index + 1) : ws.getLeaf("tab");
       void this.host.openAsRecipe(newLeaf, file).then(() => ws.setActiveLeaf(newLeaf, { focus: true }));
     }, { capture: true });
+  }
+
+  /** The recipe a card or table row shows. */
+  private fileForEl(view: any, el: HTMLElement): TFile | null {
+    const inner = view?.controller?.view;
+    const list: any[] = Array.isArray(inner?.items) ? inner.items : Array.isArray(inner?.rows) ? inner.rows : [];
+    const file = list.find((i) => i?.el === el)?.entry?.file;
+    return file instanceof TFile ? file : null;
+  }
+
+  private toggleSelected(path: string) {
+    if (this.selected.has(path)) this.selected.delete(path);
+    else this.selected.add(path);
+    this.lastSelected = path;
+  }
+
+  /** Shift+click: everything between the last card picked and this one, in the order shown. */
+  private selectRange(view: any, from: string, to: string) {
+    const inner = view?.controller?.view;
+    const list: any[] = Array.isArray(inner?.items) ? inner.items : Array.isArray(inner?.rows) ? inner.rows : [];
+    const paths = list.map((i) => i?.entry?.file).filter((f): f is TFile => f instanceof TFile && this.isRecipe(f)).map((f) => f.path);
+    const a = paths.indexOf(from);
+    const b = paths.indexOf(to);
+    if (a < 0 || b < 0) {
+      this.toggleSelected(to);
+      return;
+    }
+    for (const p of paths.slice(Math.min(a, b), Math.max(a, b) + 1)) this.selected.add(p);
+    this.lastSelected = to;
+  }
+
+  private clearSelection() {
+    this.selected.clear();
+    this.lastSelected = null;
+    this.refreshBrowsers();
+  }
+
+  private selectedFiles(): TFile[] {
+    return [...this.selected]
+      .map((p) => this.app.vault.getAbstractFileByPath(p))
+      .filter((f): f is TFile => f instanceof TFile && this.isRecipe(f));
+  }
+
+  /** What "Edit recipe tags" works on: the browser's selected cards, or the recipe that's open. */
+  private tagTargets(): TFile[] {
+    const view = this.app.workspace.getMostRecentLeaf()?.view as any;
+    const inBrowser = view?.file instanceof TFile && view.file.path === this.browserPath();
+    if (inBrowser) return this.selectedFiles();
+    const file = this.app.workspace.getActiveFile();
+    return file && this.isRecipe(file) ? [file] : [];
+  }
+
+  openTagEditor(files: TFile[]) {
+    if (!files.length) return;
+    new TagEditorModal(this.app, files, () => this.recipeTags()).open();
+  }
+
+  /** Selected cards get a highlight, and the browser a bar with what can be done with them. */
+  private paintSelection(view: any) {
+    const el: HTMLElement | undefined = view?.containerEl;
+    if (!el) return;
+    const inner = view?.controller?.view;
+    const list: any[] = Array.isArray(inner?.items) ? inner.items : Array.isArray(inner?.rows) ? inner.rows : [];
+    for (const item of list) {
+      const path = item?.entry?.file?.path;
+      item?.el?.toggleClass?.("cooklang-selected", !!path && this.selected.has(path));
+    }
+    // Drop paths that no longer exist (deleted or renamed recipes).
+    for (const p of this.selected) if (!this.app.vault.getAbstractFileByPath(p)) this.selected.delete(p);
+    let bar = el.querySelector<HTMLElement>(".cooklang-selection-bar");
+    if (!this.selected.size) {
+      bar?.remove();
+      return;
+    }
+    const content = el.querySelector<HTMLElement>(".view-content") ?? el;
+    if (!bar) {
+      bar = content.createDiv({ cls: "cooklang-selection-bar" });
+      bar.createSpan({ cls: "cooklang-selection-count" });
+      const tags = bar.createEl("button", { cls: "mod-cta", attr: { type: "button" } });
+      setIcon(tags.createSpan({ cls: "cooklang-selection-icon" }), "tags");
+      tags.createSpan({ text: "Edit tags" });
+      tags.addEventListener("click", () => this.openTagEditor(this.selectedFiles()));
+      const clear = bar.createEl("button", { cls: "clickable-icon", attr: { type: "button", "aria-label": "Clear selection" } });
+      setIcon(clear, "x");
+      clear.addEventListener("click", () => this.clearSelection());
+    }
+    const n = this.selected.size;
+    bar.querySelector(".cooklang-selection-count")!.setText(`${n} selected`);
   }
 
   /** Card details line: time and/or servings, as chosen in the Options menu. */

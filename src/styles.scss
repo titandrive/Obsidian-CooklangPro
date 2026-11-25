@@ -226,6 +226,12 @@ button.cook-pill.is-clickable {
 }
 .cook-pill-icon { flex: 0 0 auto; opacity: 0.85; }
 .cook-pill-tag { background: transparent; border-color: var(--text-accent); color: var(--text-accent); }
+// The pencil after a recipe's tags (or "Add tags" when it has none).
+button.cook-pill.cook-pill-edit-tags {
+  background: transparent; border-style: dashed; color: var(--text-faint); padding: 2px 8px;
+  .cook-pill-icon-svg { display: inline-flex; --icon-size: 13px; }
+  &:hover { color: var(--text-accent); border-color: var(--text-accent); text-decoration: none; }
+}
 
 /* Sticky bar */
 .cook-bar {
@@ -1857,5 +1863,170 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
     padding: 6px;
     margin: -6px 0;
     --icon-size: var(--icon-m);
+  }
+}
+
+// Tag editor dialog.
+.cooklang-tag-editor {
+  .cooklang-tag-editor-target {
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+    margin: calc(-1 * var(--size-2-2)) 0 var(--size-4-3);
+  }
+
+  .cooklang-tag-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-2-3);
+    margin-bottom: var(--size-4-3);
+    min-height: 30px;
+  }
+
+  .cooklang-tag-empty {
+    color: var(--text-faint);
+    font-size: var(--font-ui-small);
+    align-self: center;
+  }
+
+  .cooklang-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--text-accent);
+    border-radius: 999px;
+    color: var(--text-accent);
+    font-size: var(--font-ui-small);
+    overflow: hidden;
+
+    button {
+      background: transparent;
+      box-shadow: none;
+      border: none;
+      border-radius: 0;
+      height: auto;
+      color: inherit;
+      font: inherit;
+      cursor: var(--cursor);
+    }
+
+    &.is-new { border-style: dashed; }
+    &.is-partial { border-color: var(--background-modifier-border-hover); color: var(--text-muted); }
+    &.is-renamed .cooklang-tag-name { font-style: italic; }
+    &.is-removed {
+      border-color: var(--background-modifier-border);
+      color: var(--text-faint);
+      .cooklang-tag-name { text-decoration: line-through; cursor: default; }
+    }
+  }
+
+  .cooklang-tag-name {
+    padding: 3px 4px 3px 11px;
+    &:hover { text-decoration: underline; }
+    &:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; border-radius: 999px; }
+  }
+
+  .cooklang-tag-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 6px;
+    margin: 0 2px;
+    border-radius: 999px !important;
+    background: var(--background-modifier-hover) !important;
+    font-size: var(--font-ui-smaller);
+    --icon-size: 11px;
+    .cooklang-tag-count-plus { display: inline-flex; }
+    &:hover { color: var(--text-accent); }
+  }
+
+  .cooklang-tag-remove {
+    display: inline-flex;
+    padding: 3px 9px 3px 3px;
+    --icon-size: 13px;
+    opacity: 0.7;
+    &:hover { opacity: 1; }
+  }
+
+  .cooklang-tag-rename {
+    width: 12em;
+    height: 26px;
+    font-size: var(--font-ui-small);
+    border: none;
+    background: transparent;
+    padding: 0 11px;
+  }
+
+  .cooklang-tag-add {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-3);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    padding: 0 var(--size-4-2);
+    background: var(--background-modifier-form-field);
+    &:focus-within { border-color: var(--interactive-accent); }
+
+    .cooklang-tag-add-icon { display: inline-flex; color: var(--text-faint); --icon-size: 14px; }
+    input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      padding-left: 0;
+      &:focus { box-shadow: none; }
+    }
+  }
+
+  .cooklang-tag-editor-note {
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+    margin-top: var(--size-4-2);
+  }
+
+  .cooklang-tag-editor-keys {
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+    text-align: right;
+    margin-top: var(--size-2-3);
+  }
+}
+
+.cooklang-tag-suggestion {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--size-4-4);
+
+  .cooklang-tag-suggestion-count { color: var(--text-faint); font-size: var(--font-ui-smaller); }
+}
+
+// Selecting recipes in the browser.
+.cooklang-recipe-browser {
+  .bases-cards-item.cooklang-selected {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: 1px;
+  }
+  .bases-tr.cooklang-selected { background-color: var(--background-modifier-active-hover); }
+
+  .view-content { position: relative; }
+
+  .cooklang-selection-bar {
+    position: absolute;
+    left: 50%;
+    bottom: var(--size-4-4);
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    padding: var(--size-2-2) var(--size-2-2) var(--size-2-2) var(--size-4-4);
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border-hover);
+    border-radius: 999px;
+    box-shadow: var(--shadow-l);
+    font-size: var(--font-ui-small);
+    white-space: nowrap;
+
+    .cooklang-selection-count { color: var(--text-muted); }
+    button.mod-cta { display: inline-flex; align-items: center; gap: var(--size-2-2); border-radius: 999px; }
+    .cooklang-selection-icon { display: inline-flex; --icon-size: 14px; }
   }
 }
