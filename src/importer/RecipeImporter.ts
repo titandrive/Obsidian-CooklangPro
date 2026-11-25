@@ -286,18 +286,6 @@ export class RecipeImporter extends Component {
             .setIcon("tags")
             .onClick(() => this.openTagEditor(group)),
         );
-        if (card) {
-          const picked = this.selected.has(file.path);
-          menu.addItem((item) =>
-            item
-              .setTitle(picked ? "Deselect" : "Select")
-              .setIcon(picked ? "square" : "check-square")
-              .onClick(() => {
-                this.toggleSelected(file.path);
-                this.refreshBrowsers();
-              }),
-          );
-        }
         menu.addItem((item) => item.setTitle("Set recipe photo").setIcon("image").onClick(() => this.openPhotoModal(file)));
       }),
     );
@@ -560,7 +548,7 @@ export class RecipeImporter extends Component {
   }
 
   private newTabViews = new WeakSet<object>();
-  /** Recipes selected in the recipe browser (Ctrl/Cmd+click, Shift+click, or Select in a card's menu), by path. */
+  /** Recipes selected in the recipe browser (Ctrl/Cmd+click or Shift+click), by path. */
   private selected = new Set<string>();
   private lastSelected: string | null = null;
   /** The card last right-clicked in the browser, so the file menu knows it came from a card. */
@@ -1065,7 +1053,7 @@ export class RecipeImporter extends Component {
         }
       }
       // Selecting: Ctrl/Cmd+click toggles a card, Shift+click selects a run of cards, and while any are selected
-      // a plain click toggles too (so it works by tapping on phones, after Select in a card's menu).
+      // a plain click toggles too.
       const pickEl = target?.closest<HTMLElement>(".bases-cards-item, .bases-tr");
       if (pickEl && !target!.closest(".recipe-importer-rating, input, textarea, [contenteditable]")
           && (evt.ctrlKey || evt.metaKey || evt.shiftKey || this.selected.size > 0)) {
