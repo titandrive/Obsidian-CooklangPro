@@ -282,7 +282,7 @@ export class RecipeImporter extends Component {
         const group = card && this.selected.has(file.path) && this.selected.size > 1 ? this.selectedFiles() : [file];
         menu.addItem((item) =>
           item
-            .setTitle(group.length > 1 ? `Edit tags (${group.length} recipes)` : "Edit tags")
+            .setTitle(group.length > 1 ? `Edit recipe tags (${group.length} recipes)` : "Edit recipe tags")
             .setIcon("tags")
             .onClick(() => this.openTagEditor(group)),
         );
@@ -296,7 +296,7 @@ export class RecipeImporter extends Component {
         if (!recipes.length) return;
         menu.addItem((item) =>
           item
-            .setTitle(recipes.length > 1 ? `Edit tags (${recipes.length} recipes)` : "Edit tags")
+            .setTitle(recipes.length > 1 ? `Edit recipe tags (${recipes.length} recipes)` : "Edit recipe tags")
             .setIcon("tags")
             .onClick(() => this.openTagEditor(recipes)),
         );
