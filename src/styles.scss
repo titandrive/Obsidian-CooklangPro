@@ -407,7 +407,7 @@ button.cook-pill.cook-pill-edit-tags {
   display: inline-flex; align-items: center; gap: 0.25em;
   box-sizing: border-box; max-width: 100%; min-height: 26px; padding: 1px 8px;
   background: var(--background-secondary); border: 1px solid var(--text-accent); color: var(--text-accent);
-  border-radius: 13px; font-size: 0.9em;
+  border-radius: 5px; font-size: 0.9em;
 }
 .cook-timer-chip.cook-timer-running {
   animation: cook-timer-border-pulse 1.6s ease-in-out infinite;
@@ -533,7 +533,7 @@ button.cook-pill.cook-pill-edit-tags {
   .cook-step-toggle {
     min-width: 48px; min-height: 48px; margin: -10px 0 -10px -10px;
   }
-  .cook-timer-chip { min-height: 52px; border-radius: 26px; padding-block: 1px; }
+  .cook-timer-chip { min-height: 52px; border-radius: 5px; padding-block: 1px; }
   .cook-timer-btn { min-width: 48px; min-height: 48px; }
   .cook-timer-reset-btn { flex-basis: 48px; width: 48px; height: 48px; }
   .cook-timer-range-close { width: 48px; height: 48px; }
@@ -2333,3 +2333,24 @@ button.cook-mode-next-card {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
 }
+
+/* Cook mode's buttons and the Cook button look like desktop buttons on every device (Obsidian's phone theme
+   makes buttons pill-shaped and flat). */
+.cook-mode-buttons button,
+button.cook-start-btn {
+  /* Obsidian's button rules read this variable (44px on phones); set it here so they give square-ish corners. */
+  --button-radius: 5px;
+  border-radius: 5px;
+  box-shadow:
+    rgba(255, 255, 255, 0.09) 0 0.5px 0.5px 0.5px inset,
+    rgba(0, 0, 0, 0.15) 0 2px 4px 0,
+    rgba(0, 0, 0, 0.1) 0 1px 1.5px 0,
+    rgba(0, 0, 0, 0.2) 0 1px 2px 0;
+}
+.theme-light .cook-mode-buttons button,
+.theme-light button.cook-start-btn {
+  box-shadow:
+    rgba(0, 0, 0, 0.08) 0 0 0 1px inset,
+    rgba(0, 0, 0, 0.12) 0 1px 2px 0;
+}
+.cook-mode-buttons button:disabled { box-shadow: none; }
