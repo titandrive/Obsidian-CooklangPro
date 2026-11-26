@@ -306,7 +306,7 @@ export default class CookPlugin extends Plugin {
 
     this.addCommand({
       id: 'edit-as-markdown',
-      name: 'Edit recipe source',
+      name: 'Toggle source mode',
       checkCallback: checking => {
         const leaf = this.app.workspace.activeLeaf;
         if (!leaf || !(leaf.view instanceof CookView) || !leaf.view.file) return false;

@@ -15,15 +15,17 @@
 - **Import recipe** (chef-hat button or command):
   - From a link: the link is checked as soon as you paste it, showing the recipe found (name, photo, ingredients, steps, time).
   - From text: paste a recipe in any layout.
+  - From a photo (needs Claude): photograph a cookbook page or recipe card, or choose, drop or paste photos. A recipe over several pages can take several photos.
   - The recipe's photo is downloaded, and tags and a folder are suggested.
   - Optional Claude conversion with an Anthropic API key: better ingredient marking, and it handles pages without recipe data and messy pasted text. You can switch it on or off and pick the model in the dialog, with progress shown as it converts. Without Claude, a built-in converter is used.
-  - Usable from the keyboard: Ctrl/Cmd+Enter imports or saves, Ctrl/Cmd+1 and 2 switch tabs, Alt+Left goes back.
+  - Usable from the keyboard: Ctrl/Cmd+Enter imports or saves, Ctrl/Cmd+1 to 3 switch tabs, Alt+Left goes back.
 - **Recipe browser**: an Obsidian base of every recipe.
   - Photo cards with the heart and stars over the photo.
   - Views: all recipes, by folder, favorites, top rated, and a table.
   - An Options menu (settings cog) on the toolbar picks what the cards show (heart, stars, folder, time, servings, tags) and whether recipes open in a new tab.
   - Recipes open in a new tab, which you can turn off.
 - **Favorites and ratings**: a heart and 1 to 5 stars under each recipe's title and on every browser card, saved as `favorite` and `rating` properties.
+- **Set recipe source** (command or card menu): a link, a name (a cookbook), or both.
 - **Set recipe photo** (command or file menu): from a link, a file, a pasted image or the phone's camera. Photos are resized and saved in a photos folder or beside the recipe, as you choose in settings.
 - **Clickable tags** under the recipe title, which open a tag search.
 - **Sidebar buttons** for importing a recipe and for switching between recipe and text view.
@@ -105,7 +107,7 @@ are unaffected unless their frontmatter contains the Boolean `recipe: true`.
 
 **Default view** chooses the native editor or interactive recipe preview for newly
 opened recipes. Use Obsidian's Reading View action, **Toggle preview recipe**, or
-**Open as Recipe** to enter recipe preview; **Edit recipe source** returns to the
+**Open as Recipe** to enter recipe preview; **Toggle source mode** returns to the
 native editor. Choosing source stays active in that tab until you navigate elsewhere.
 The old **Edit as Markdown** command keeps its command ID, so existing hotkeys work.
 

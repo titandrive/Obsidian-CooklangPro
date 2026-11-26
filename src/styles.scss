@@ -704,6 +704,70 @@ button.cook-pill.cook-pill-edit-tags {
   border-top: none;
 }
 
+.recipe-importer-photo-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  min-height: 9em;
+  padding: 1em;
+  border: 2px dashed var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+
+  &:hover, &:focus-visible, &.is-dragging {
+    border-color: var(--interactive-accent);
+    color: var(--text-normal);
+  }
+
+  .recipe-importer-photo-drop-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+.recipe-importer-photo-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin: 0.6em 0;
+
+  &:empty { display: none; }
+}
+
+.recipe-importer-photo-thumb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  button.recipe-importer-photo-remove {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    box-shadow: none;
+
+    svg { width: 14px; height: 14px; }
+  }
+}
+
 .recipe-importer-text {
   width: 100%;
   min-height: 14em;

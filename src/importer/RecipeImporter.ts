@@ -1,7 +1,7 @@
-import { App, Component, Menu, Modal, Notice, Platform, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, parseYaml, requestUrl, setIcon, stringifyYaml } from "obsidian";
+import { App, Component, arrayBufferToBase64, Menu, Modal, Notice, Platform, Plugin, Setting, TFile, TFolder, WorkspaceLeaf, normalizePath, parseYaml, requestUrl, setIcon, stringifyYaml } from "obsidian";
 import { RecipeData, findRecipeJsonLd, normalizeRecipe } from "./recipe";
 import { DEFAULT_FOLDERS, guessFolder, safeFileName, toCooklang } from "./converter";
-import { CLAUDE_MODELS, DEFAULT_MODEL, type ClaudeProgress, checkKey, convertWithClaude, describeError } from "./claude";
+import { CLAUDE_MODELS, DEFAULT_MODEL, type ClaudeProgress, type RecipeImage, checkKey, convertWithClaude, describeError } from "./claude";
 import { minutesIn, parseRecipeText } from "./textRecipe";
 import { hapticTap, TAPPABLE } from "../utils/haptics";
 import { INSIGHTS_VIEW, RecipeInsightsView } from "./insights";
@@ -79,6 +79,8 @@ interface Page {
   usable: boolean;
   /** Recipe text pasted by the user, instead of a web page. */
   text?: string;
+  /** Photos of a recipe (a cookbook page), read by Claude. */
+  images?: RecipeImage[];
 }
 
 interface Prepared {
@@ -1470,6 +1472,7 @@ export class RecipeImporter extends Component {
 
   /** Whether a fetched page can be imported, and how. */
   canImport(page: Page): boolean {
+    if (page.images) return this.claudeOn();
     return page.text !== undefined || page.usable || this.claudeOn();
   }
 
@@ -1483,6 +1486,11 @@ export class RecipeImporter extends Component {
     return { url: "", html: "", recipe: null, usable: false, text };
   }
 
+  /** Photos of a recipe, ready to convert like a fetched page. */
+  photoPage(images: RecipeImage[]): Page {
+    return { url: "", html: "", recipe: null, usable: false, images };
+  }
+
   /** Converts a fetched page into a Cooklang recipe note. */
   async convert(page: Page, onProgress?: (p: ClaudeProgress) => void, signal?: AbortSignal): Promise<Prepared> {
     const { url, recipe, usable, html } = page;
@@ -1492,14 +1500,16 @@ export class RecipeImporter extends Component {
         model: this.settings.model,
         recipe: usable ? recipe : null,
         url,
-        pageText: page.text ?? (usable ? undefined : pageText(html)),
+        pageText: page.images ? undefined : page.text ?? (usable ? undefined : pageText(html)),
         pasted: page.text !== undefined,
+        images: page.images,
         folders: this.recipeFolders(),
         onProgress,
         signal,
       });
       return { url, recipe, markdown, method: "claude", folder };
     }
+    if (page.images) throw new Error("Reading a photo needs Claude. Switch Claude on and try again.");
     if (page.text !== undefined) {
       const parsed = parseRecipeText(page.text);
       if (!parsed.ingredients.length && !parsed.groups.length) throw new Error("Couldn't find ingredients or steps in that text.");
@@ -1700,6 +1710,7 @@ class ImportModal extends Modal {
     });
     this.scope.register(["Mod"], "1", () => (this.tabKeys?.("link"), false));
     this.scope.register(["Mod"], "2", () => (this.tabKeys?.("text"), false));
+    this.scope.register(["Mod"], "3", () => (this.tabKeys?.("photo"), false));
     this.scope.register(["Alt"], "ArrowLeft", () => (this.back?.(), false));
     this.showUrlStep();
   }
@@ -1713,10 +1724,19 @@ class ImportModal extends Modal {
   /** The current screen's main action, its "back", and tab switching (first screen only). */
   private submit: (() => void) | null = null;
   private back: (() => void) | null = null;
-  private tabKeys: ((tab: "link" | "text") => void) | null = null;
+  private tabKeys: ((tab: ImportTab) => void) | null = null;
+  /** Photos picked on the photo tab, kept while switching tabs or going back. */
+  private photos: { url: string; image: RecipeImage }[] = [];
+  /** The tab the current import started from, for going back. */
+  private origin: ImportTab = "link";
+
+  /** Undoes listeners the current first screen added to the whole dialog. */
+  private leaveTab: (() => void) | null = null;
 
   private resetKeys() {
     this.submit = this.back = this.tabKeys = null;
+    this.leaveTab?.();
+    this.leaveTab = null;
   }
 
   /** A muted line of keyboard hints under the buttons. */
@@ -1726,13 +1746,20 @@ class ImportModal extends Modal {
     this.contentEl.createDiv({ cls: "recipe-importer-keys", text: hints.map((h) => h.replace(/Mod/g, mod)).join("   ·   ") });
   }
 
-  /** Tabs at the top of the first screen: a link, or pasted text. */
-  private tabs(active: "link" | "text") {
+  /** The photo tab is there only with a Claude API key: reading a photo needs Claude. */
+  private tabIds(): ImportTab[] {
+    return this.plugin.settings.apiKey ? ["link", "text", "photo"] : ["link", "text"];
+  }
+
+  /** Tabs at the top of the first screen: a link, pasted text, or photos. */
+  private tabs(active: ImportTab) {
     this.resetKeys();
-    const openTab = (id: "link" | "text") => {
-      if (id === active) return;
+    const ids = this.tabIds();
+    const openTab = (id: ImportTab) => {
+      if (id === active || !ids.includes(id)) return;
       if (id === "link") this.showUrlStep();
-      else this.showTextStep();
+      else if (id === "text") this.showTextStep();
+      else this.showPhotoStep();
     };
     this.tabKeys = openTab;
     const bar = this.contentEl.createDiv({ cls: "recipe-importer-tabs", attr: { role: "tablist" } });
@@ -1740,11 +1767,12 @@ class ImportModal extends Modal {
     bar.addEventListener("keydown", (e) => {
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
-        openTab(active === "link" ? "text" : "link");
+        const i = ids.indexOf(active) + (e.key === "ArrowRight" ? 1 : -1);
+        openTab(ids[(i + ids.length) % ids.length]);
         window.setTimeout(() => this.contentEl.querySelector<HTMLElement>(".recipe-importer-tab.is-active")?.focus(), 0);
       }
     });
-    const tab = (id: "link" | "text", icon: string, label: string, open: () => void) => {
+    const tab = (id: ImportTab, icon: string, label: string, open: () => void) => {
       const b = bar.createEl("button", {
         cls: "recipe-importer-tab" + (id === active ? " is-active" : ""),
         attr: { role: "tab", "aria-selected": String(id === active), tabindex: id === active ? "0" : "-1" },
@@ -1755,6 +1783,7 @@ class ImportModal extends Modal {
     };
     tab("link", "link", "From a link", () => this.showUrlStep());
     tab("text", "text", "From text", () => this.showTextStep());
+    if (ids.includes("photo")) tab("photo", "camera", "From a photo", () => this.showPhotoStep());
   }
 
   /**
@@ -1796,6 +1825,138 @@ class ImportModal extends Modal {
       await plugin.saveSettings();
     });
     render();
+  }
+
+  private tabHint(): string {
+    return this.tabIds().length > 2 ? "Mod+1 / 2 / 3 switch tab" : "Mod+1 / Mod+2 switch tab";
+  }
+
+  /**
+   * Step 1, photo tab: photos of a recipe (a cookbook page, a recipe card), read by Claude. Several photos can be
+   * added for a recipe that runs over pages. Choose files, take a photo (on a phone), drop or paste images.
+   */
+  private showPhotoStep() {
+    const { contentEl } = this;
+    contentEl.empty();
+    this.tabs("photo");
+
+    const drop = contentEl.createDiv({
+      cls: "recipe-importer-photo-drop",
+      attr: { tabindex: "0", role: "button", "aria-label": "Choose photos of a recipe, or drop them here" },
+    });
+    const thumbs = contentEl.createDiv({ cls: "recipe-importer-photo-thumbs" });
+    const check = contentEl.createDiv({ cls: "recipe-importer-check" });
+    const chooser = contentEl.createEl("input", { attr: { type: "file", accept: "image/*", multiple: "" } });
+    chooser.hide();
+    const camera = contentEl.createEl("input", { attr: { type: "file", accept: "image/*", capture: "environment" } });
+    camera.hide();
+
+    let button!: import("obsidian").ButtonComponent;
+    const actions = new Setting(contentEl);
+    if (Platform.isMobile) {
+      actions.addExtraButton((b) => b.setIcon("camera").setTooltip("Take a photo").onClick(() => camera.click()));
+    }
+    actions.addButton((b) => {
+      button = b;
+      b.setButtonText("Import").setCta().onClick(() => go());
+    });
+    this.claudeControls(actions.infoEl, () => update());
+
+    let adding = 0;
+    const add = async (files: Iterable<Blob>) => {
+      const list = [...files].filter((f) => !f.type || f.type.startsWith("image/"));
+      if (!list.length) return;
+      adding += list.length;
+      update();
+      for (const f of list) {
+        try {
+          const image = await photoForClaude(f);
+          if (!this.contentEl.contains(thumbs)) return; // the dialog moved on
+          this.photos.push({ url: URL.createObjectURL(f), image });
+        } catch {
+          new Notice("Couldn't read that image. Try a JPEG or PNG.");
+        }
+        adding--;
+        update();
+      }
+    };
+    const row = (icon: string, text: string, cls: string) => {
+      check.empty();
+      check.className = `recipe-importer-check ${cls}`;
+      setIcon(check.createSpan({ cls: "recipe-importer-check-icon" }), icon);
+      check.createSpan({ text });
+    };
+    const update = () => {
+      drop.empty();
+      setIcon(drop.createSpan({ cls: "recipe-importer-photo-drop-icon" }), "image-plus");
+      drop.createSpan({
+        text: Platform.isMobile
+          ? this.photos.length ? "Add another photo" : "Choose photos of the recipe"
+          : this.photos.length ? "Add another photo: click, drop or paste" : "Drop photos of the recipe here, paste one, or click to choose",
+      });
+      thumbs.empty();
+      this.photos.forEach((p, i) => {
+        const t = thumbs.createDiv({ cls: "recipe-importer-photo-thumb" });
+        t.createEl("img", { attr: { src: p.url, alt: `Photo ${i + 1}` } });
+        const x = t.createEl("button", { cls: "recipe-importer-photo-remove", attr: { type: "button", "aria-label": `Remove photo ${i + 1}` } });
+        setIcon(x, "x");
+        x.addEventListener("click", () => {
+          URL.revokeObjectURL(p.url);
+          this.photos.splice(this.photos.indexOf(p), 1);
+          update();
+        });
+      });
+      const n = this.photos.length;
+      if (adding) row("loader", "Reading the photo...", "is-ok-inline");
+      else if (!n) { check.empty(); check.className = "recipe-importer-check"; }
+      else if (!this.plugin.claudeOn()) row("circle-x", "Reading a photo needs Claude. Switch Claude on.", "is-error");
+      else row("circle-check", `${plural(n, "photo")}. Claude will read the recipe${n > 1 ? " from them in this order" : ""}.`, "is-ok-inline");
+      button.setDisabled(!n || !!adding || !this.plugin.claudeOn());
+    };
+    const go = () => {
+      if (!this.photos.length || adding || !this.plugin.claudeOn()) return;
+      this.origin = "photo";
+      this.showProgressStep(this.plugin.photoPage(this.photos.map((p) => p.image)));
+    };
+
+    drop.addEventListener("click", () => chooser.click());
+    drop.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        chooser.click();
+      }
+    });
+    const picked = (input: HTMLInputElement) => () => {
+      void add(Array.from(input.files ?? []));
+      input.value = "";
+    };
+    chooser.addEventListener("change", picked(chooser));
+    camera.addEventListener("change", picked(camera));
+    drop.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      drop.addClass("is-dragging");
+    });
+    drop.addEventListener("dragleave", () => drop.removeClass("is-dragging"));
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      drop.removeClass("is-dragging");
+      void add(Array.from(e.dataTransfer?.files ?? []));
+    });
+    const onPaste = (e: ClipboardEvent) => {
+      if (!this.contentEl.contains(drop)) return;
+      const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
+      if (!files.length) return;
+      e.preventDefault();
+      void add(files);
+    };
+    this.modalEl.addEventListener("paste", onPaste);
+    this.leaveTab = () => this.modalEl.removeEventListener("paste", onPaste);
+
+    this.submit = go;
+    this.keyHints("Mod+Enter import", "Ctrl+V paste a photo".replace("Ctrl", Platform.isMacOS ? "⌘" : "Ctrl"), this.tabHint());
+    update();
+    if (!Platform.isMobile) window.setTimeout(() => drop.focus(), 0);
   }
 
   /** Step 1, text tab: a recipe pasted from anywhere, read by Claude or the built-in reader. */
@@ -1852,12 +2013,14 @@ class ImportModal extends Modal {
       button.setDisabled(text.length < 40);
     };
     const go = () => {
-      if (area.value.trim().length >= 40) this.showProgressStep(this.plugin.textPage(area.value.trim()));
+      if (area.value.trim().length < 40) return;
+      this.origin = "text";
+      this.showProgressStep(this.plugin.textPage(area.value.trim()));
     };
     area.addEventListener("input", update);
     // Plain Enter is a new line here; Ctrl/Cmd+Enter imports (see onOpen).
     this.submit = go;
-    this.keyHints("Mod+Enter import", "Mod+1 / Mod+2 switch tab");
+    this.keyHints("Mod+Enter import", this.tabHint());
     update();
     if (!Platform.isMobile) window.setTimeout(() => area.focus(), 0);
   }
@@ -1995,10 +2158,13 @@ class ImportModal extends Modal {
     const go = async () => {
       window.clearTimeout(timer);
       if (!this.page || this.page.url !== url.trim()) await runCheck();
-      if (this.page && this.plugin.canImport(this.page)) this.showProgressStep(this.page);
+      if (this.page && this.plugin.canImport(this.page)) {
+        this.origin = "link";
+        this.showProgressStep(this.page);
+      }
     };
     this.submit = () => void go();
-    this.keyHints("Enter import", "Mod+1 / Mod+2 switch tab");
+    this.keyHints("Enter import", this.tabHint());
     if (url) void runCheck();
     // A link already in the clipboard is filled in straight away.
     else void clipboardLink().then((link) => {
@@ -2026,19 +2192,20 @@ class ImportModal extends Modal {
       set("waiting");
       return { el, set, label };
     };
-    const read = step(page.text !== undefined ? "Read the pasted recipe" : "Read the recipe from the page");
+    const read = step(page.images ? `Read the ${page.images.length > 1 ? "photos" : "photo"}` : page.text !== undefined ? "Read the pasted recipe" : "Read the recipe from the page");
     const convert = step(claude ? "Convert with Claude" : "Convert to Cooklang");
     const bar = convert.el.createEl("progress", { cls: "recipe-importer-bar" });
     bar.max = 1;
     bar.hide();
-    read.set("done", page.text !== undefined ? "" : page.usable && page.recipe ? page.recipe.name : "From the page text");
+    read.set("done", page.text !== undefined || page.images ? "" : page.usable && page.recipe ? page.recipe.name : "From the page text");
 
     const buttons = new Setting(contentEl);
     this.abort = new AbortController();
     const signal = this.abort.signal;
     const cancel = () => {
       this.abort?.abort();
-      if (page.text !== undefined) this.showTextStep();
+      if (page.images) this.showPhotoStep();
+      else if (page.text !== undefined) this.showTextStep();
       else this.showUrlStep(page.url);
     };
     buttons.addButton((b) => {
@@ -2170,6 +2337,7 @@ class ImportModal extends Modal {
     this.back = () => {
       this.prepared = null;
       if (p.url) this.showUrlStep(p.url);
+      else if (this.origin === "photo") this.showPhotoStep();
       else this.showTextStep();
     };
     this.keyHints("Enter save", "Alt+← back", "Esc close");
@@ -2178,8 +2346,32 @@ class ImportModal extends Modal {
   onClose() {
     this.abort?.abort();
     this.checkToken++;
+    this.leaveTab?.();
+    for (const p of this.photos) URL.revokeObjectURL(p.url);
+    this.photos = [];
     this.contentEl.empty();
   }
+}
+
+type ImportTab = "link" | "text" | "photo";
+
+/** Largest width or height of a recipe photo sent to Claude: enough to read small print. */
+const PHOTO_MAX = 2000;
+
+/** A recipe photo scaled down and re-encoded as JPEG for Claude. Throws if the image can't be decoded. */
+async function photoForClaude(blob: Blob): Promise<RecipeImage> {
+  const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" });
+  const scale = Math.min(1, PHOTO_MAX / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no canvas");
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const jpeg = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!jpeg) throw new Error("could not encode");
+  return { mediaType: "image/jpeg", data: arrayBufferToBase64(await jpeg.arrayBuffer()) };
 }
 
 /** Enough of a recipe note's front matter to guess its folder: the title and tags. */
@@ -2348,7 +2540,7 @@ export function displayImporterSettings(containerEl: HTMLElement, importer: Reci
     const keySetting = new Setting(containerEl)
       .setName("Anthropic API key")
       .setDesc(
-        "Optional. With a key, Claude can convert recipes (better ingredient marking, and pages without recipe data or messy pasted text work). Switch Claude on or off and pick the model in the import dialog. Without a key, a built-in converter is used. The key is stored in CooklangPro's data.json, which syncs with your vault.",
+        "Optional. With a key, Claude can convert recipes (better ingredient marking, and pages without recipe data, messy pasted text and photos of recipes work). Switch Claude on or off and pick the model in the import dialog. Without a key, a built-in converter is used. The key is stored in CooklangPro's data.json, which syncs with your vault.",
       );
     const keyStatus = containerEl.createDiv({ cls: "recipe-importer-key-status" });
     keySetting.settingEl.after(keyStatus);

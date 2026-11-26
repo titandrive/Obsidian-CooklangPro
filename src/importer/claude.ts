@@ -82,6 +82,12 @@ export interface ClaudeRecipe {
   folder: string | null;
 }
 
+/** A photo of a recipe, base64-encoded for the API. */
+export interface RecipeImage {
+  mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+  data: string;
+}
+
 export async function convertWithClaude(opts: {
   apiKey: string;
   model: string;
@@ -90,13 +96,20 @@ export async function convertWithClaude(opts: {
   pageText?: string;
   /** pageText is a recipe the user pasted, not a web page. */
   pasted?: boolean;
+  /** Photos of a recipe (a cookbook page, a recipe card), read instead of a page. */
+  images?: RecipeImage[];
   /** The recipe folders to choose from; Claude names the best fit. */
   folders?: string[];
   onProgress?: (p: ClaudeProgress) => void;
   signal?: AbortSignal;
 }): Promise<ClaudeRecipe> {
   const client = new Anthropic({ apiKey: opts.apiKey, dangerouslyAllowBrowser: true });
-  const source = opts.pasted
+  const photoAsk = `The user photographed this recipe, for example a cookbook page or a handwritten card${
+    (opts.images?.length ?? 0) > 1 ? `, across ${opts.images!.length} photos in order` : ""
+  }. Read the recipe from the photo${(opts.images?.length ?? 0) > 1 ? "s" : ""}. There is no source URL: if the photos show the book, magazine or author's name, write "source: <name>", otherwise leave out the source line. Fix obvious misreadings, but don't invent amounts that aren't there. If there is no recipe in the photos, reply only with NO RECIPE.`;
+  const source = opts.images?.length
+    ? photoAsk
+    : opts.pasted
     ? `The user pasted this recipe (there is no source URL, so leave out the source line):\n\n${opts.pageText ?? ""}`
     : opts.recipe
     ? `Source URL: ${opts.url}\n\nschema.org Recipe data from the page:\n${JSON.stringify(opts.recipe.raw, null, 1)}`
@@ -114,7 +127,17 @@ export async function convertWithClaude(opts: {
       fallbacks: "default",
       output_config: { effort: "medium" },
       system: INSTRUCTIONS,
-      messages: [{ role: "user", content: source + folderAsk }],
+      messages: [
+        {
+          role: "user",
+          content: opts.images?.length
+            ? [
+                ...opts.images.map((img) => ({ type: "image" as const, source: { type: "base64" as const, media_type: img.mediaType, data: img.data } })),
+                { type: "text" as const, text: source + folderAsk },
+              ]
+            : source + folderAsk,
+        },
+      ],
     },
     { signal: opts.signal },
   );
@@ -137,6 +160,7 @@ export async function convertWithClaude(opts: {
   const folderLine = /\n+folder:\s*(.+?)\s*$/i.exec(text);
   const folder = folderLine && opts.folders?.includes(folderLine[1]) ? folderLine[1] : null;
   const note = folderLine ? text.slice(0, folderLine.index).trimEnd() : text;
+  if (/^NO RECIPE\b/.test(note)) throw new Error("Claude couldn't find a recipe in the photo. Try a sharper, closer photo of the page.");
   if (!note.startsWith("---")) throw new Error("Claude's answer was not a recipe file.");
   return { markdown: note + "\n", folder };
 }

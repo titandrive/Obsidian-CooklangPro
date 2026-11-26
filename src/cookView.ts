@@ -35,7 +35,7 @@ export class CookView extends TextFileView {
 
     async onload(): Promise<void> {
         super.onload();
-        this.addAction('edit-3', 'Edit recipe source', () => { void this.editSource(this.leaf); });
+        this.addAction('edit-3', 'Toggle source mode', () => { void this.editSource(this.leaf); });
         // A haptic tick for every button in the recipe, its header included.
         this.registerDomEvent(this.containerEl, 'click', (evt) => {
             if ((evt.target as HTMLElement | null)?.closest(TAPPABLE)) hapticTap(this.settings.haptics);
@@ -52,7 +52,7 @@ export class CookView extends TextFileView {
 
     onPaneMenu(menu: Menu, source: string): void {
         super.onPaneMenu(menu, source);
-        menu.addItem(item => item.setTitle('Edit recipe source').setIcon('file-pen')
+        menu.addItem(item => item.setTitle('Toggle source mode').setIcon('file-pen')
             .onClick(() => this.editSource(this.leaf)));
     }
 
