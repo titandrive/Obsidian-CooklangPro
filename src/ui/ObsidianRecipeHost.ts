@@ -22,6 +22,13 @@ export class ObsidianRecipeHost implements RecipeHostAdapter {
         return this.app.vault.getResourcePath(file);
     }
 
+    watchFile(file: TFile, onChange: () => void): () => void {
+        const ref = this.app.vault.on('modify', changed => {
+            if (changed.path === file.path) onChange();
+        });
+        return () => this.app.vault.offref(ref);
+    }
+
     resolveReference(
         sourceFile: TFile | null,
         ref: RecipeRefTarget,

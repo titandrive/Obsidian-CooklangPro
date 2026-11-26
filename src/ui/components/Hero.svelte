@@ -30,9 +30,17 @@
             destroy() { span.remove(); },
         };
     }
-    let mainImageUrl = $derived(
-        typeof mainImage === 'string' ? mainImage : mainImage ? model.host.getResourcePath(mainImage) : null
-    );
+    // Bumped when the photo file is saved over (Set recipe photo keeps its name), so the new picture shows.
+    let photoVersion = $state(0);
+    $effect(() => {
+        const file = mainImage;
+        if (!file || typeof file === 'string' || !model.host.watchFile) return;
+        return model.host.watchFile(file, () => photoVersion++);
+    });
+    let mainImageUrl = $derived.by(() => {
+        void photoVersion;
+        return typeof mainImage === 'string' ? mainImage : mainImage ? model.host.getResourcePath(mainImage) : null;
+    });
 </script>
 
 <header class="cook-hero">

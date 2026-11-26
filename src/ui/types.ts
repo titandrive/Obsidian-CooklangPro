@@ -28,6 +28,8 @@ export interface ResolvedRecipeReference {
 
 export interface RecipeHostAdapter {
     getResourcePath(file: TFile): string;
+    /** Calls `onChange` whenever this file's contents change (a photo saved over); returns a function that stops it. */
+    watchFile?(file: TFile, onChange: () => void): () => void;
     resolveReference(sourceFile: TFile | null, ref: RecipeRefTarget): ResolvedRecipeReference | null;
     openReference(reference: ResolvedRecipeReference): void;
     openWikiLink(sourcePath: string, linktext: string): void;
