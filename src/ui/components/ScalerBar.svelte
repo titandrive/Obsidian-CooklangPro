@@ -9,6 +9,15 @@
         && model.state.displayServings !== null,
     );
 
+    // Without a scaler (servings missing, not a number like "4-6", or the scaler turned off): the servings as
+    // written, or that there are none.
+    let servingsText = $derived.by(() => {
+        const raw = model.recipe.servings == null ? '' : String(model.recipe.servings).trim();
+        if (!raw) return 'Servings not set';
+        const n = Number(raw);
+        return Number.isFinite(n) ? `${raw} ${n === 1 ? 'serving' : (model.settings.servingsLabel || 'servings')}` : `Serves ${raw}`;
+    });
+
     function scrollTo(event: MouseEvent, selector: string): void {
         event.preventDefault();
         const current = event.currentTarget as HTMLElement;
@@ -38,7 +47,7 @@
                 onclick={() => model.callbacks.onScaleChange(clampServings(model.state.displayServings! - 1))}
             >−</button>
             <span class="cook-stepper-val" aria-live="polite">
-                <b>{model.state.displayServings}</b> {model.settings.servingsLabel || 'servings'}
+                <b>{model.state.displayServings}</b> {model.state.displayServings === 1 && !model.settings.servingsLabel ? 'serving' : (model.settings.servingsLabel || 'servings')}
             </span>
             <button
                 type="button"
@@ -48,5 +57,7 @@
                 onclick={() => model.callbacks.onScaleChange(clampServings(model.state.displayServings! + 1))}
             >+</button>
         </div>
+    {:else}
+        <span class="cook-servings-static" class:is-missing={servingsText === 'Servings not set'}>{servingsText}</span>
     {/if}
 </nav>

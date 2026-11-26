@@ -16,7 +16,8 @@
     });
     let allPills = $derived(buildMetaPills(model.recipe, model.state.displayServings));
     // Details (time, servings, source...) on one line, tags on the next.
-    let pills = $derived(allPills.filter(pill => pill.kind !== 'tag'));
+    // Servings show in the bar below (the scaler, or the servings as text), not as a pill here.
+    let pills = $derived(allPills.filter(pill => pill.kind !== 'tag' && pill.kind !== 'servings'));
     let tags = $derived(allPills.filter(pill => pill.kind === 'tag'));
     let canEditTags = $derived(!!(model.interactive && model.file && model.host.editTags));
     /** Puts an Obsidian icon at the start of the element. */
