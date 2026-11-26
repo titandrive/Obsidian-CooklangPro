@@ -434,7 +434,23 @@ export class RecipeImporter extends Component {
       // Bases only listens while its own search is open; pass what's typed (and cleared) straight to the view.
       this.searchWired.add(search);
       search.placeholder = "Search recipes";
-      const apply = () => view?.controller?.updateSearchQuery?.(search.value.trim());
+      const apply = () => {
+        const controller = view?.controller;
+        const query = search.value.trim();
+        // Insights has nothing to search: typing there switches to All recipes, keeping the search box focused.
+        const results = this.resultsViewName();
+        if (query && controller?.view?.type === INSIGHTS_VIEW && results) {
+          controller.selectView?.(results);
+          window.setTimeout(() => {
+            const box = view?.containerEl?.querySelector?.(".cooklang-search-item input, .bases-search-row input") as HTMLInputElement | null;
+            if (box && document.activeElement !== box) {
+              box.focus();
+              box.setSelectionRange(box.value.length, box.value.length);
+            }
+          }, 0);
+        }
+        controller?.updateSearchQuery?.(query);
+      };
       this.registerDomEvent(search, "input", apply);
       this.registerDomEvent(search, "search" as any, apply);
       this.registerDomEvent(search, "keydown", (e: KeyboardEvent) => {
