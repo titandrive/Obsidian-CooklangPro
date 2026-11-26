@@ -2177,6 +2177,10 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   padding-top: var(--safe-area-inset-top, env(safe-area-inset-top));
   padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom));
 }
+.is-mobile.cooklang-cooking {
+  .mobile-navbar, .mobile-toolbar { display: none !important; }
+}
+.is-mobile .cook-mode { z-index: var(--layer-modal, 50); }
 .cook-mode-head {
   display: flex;
   align-items: center;

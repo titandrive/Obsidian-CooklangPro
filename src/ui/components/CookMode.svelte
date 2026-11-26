@@ -130,11 +130,14 @@
     onMount(() => {
         if (model.state.currentStep < 0 && steps.length) model.callbacks.onStepSet?.(0);
         void stayAwake();
+        // On a phone, cook mode takes the whole screen: Obsidian's bottom bar and toolbar are hidden while it's open.
+        document.body.addClass('cooklang-cooking');
         const visible = () => { if (document.visibilityState === 'visible') void stayAwake(); };
         document.addEventListener('visibilitychange', visible);
         void tick().then(() => root?.focus({ preventScroll: true }));
         return () => {
             document.removeEventListener('visibilitychange', visible);
+            document.body.removeClass('cooklang-cooking');
             void wakeLock?.release().catch(() => {});
             wakeLock = null;
         };

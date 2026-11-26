@@ -1,6 +1,6 @@
 {
   "name": "cooklang-pro",
-  "version": "0.15.110",
+  "version": "0.15.111",
   "description": "Edit, display and import Cooklang recipes, with a recipe browser and ratings. A fork of Cooklang Editor.",
   "main": "main.js",
   "type": "module",
