@@ -9,6 +9,7 @@ import { syncBrowserRows } from "./rating";
 import { type Diet, dietTags, fitsDiet } from "./diets";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
 import { SourceModal } from "./SourceModal";
+import { readSource } from "./recipeSource";
 import { TagEditorModal } from "./TagEditor";
 
 export interface ImporterSettings {
@@ -300,7 +301,11 @@ export class RecipeImporter extends Component {
             .onClick(() => this.openTagEditor(group)),
         );
         menu.addItem((item) => item.setTitle("Set recipe photo").setIcon("image").onClick(() => this.openPhotoModal(file)));
-        menu.addItem((item) => item.setTitle("Set recipe source").setIcon("link").onClick(() => new SourceModal(this.app, file).open()));
+        const source = readSource(this.app.metadataCache.getFileCache(file)?.frontmatter?.source);
+        const hasSource = !!(source.name || source.url);
+        menu.addItem((item) =>
+          item.setTitle(hasSource ? "Edit recipe source" : "Set recipe source").setIcon("link").onClick(() => new SourceModal(this.app, file).open()),
+        );
       }),
     );
     // Several files selected in the file explorer.

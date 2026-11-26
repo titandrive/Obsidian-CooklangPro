@@ -13,10 +13,11 @@ export class SourceModal extends Modal {
   onOpen() {
     const { contentEl, modalEl, file } = this;
     modalEl.addClass("cooklang-source-modal");
-    this.setTitle("Set recipe source");
+
     contentEl.createDiv({ cls: "cooklang-photo-recipe", text: file.basename });
 
     const current = readSource(this.app.metadataCache.getFileCache(file)?.frontmatter?.source);
+    this.setTitle(current.name || current.url ? "Edit recipe source" : "Set recipe source");
     const field = (label: string, value: string, placeholder: string, type: string) => {
       const row = contentEl.createEl("label", { cls: "cooklang-source-field" });
       row.createSpan({ text: label });
