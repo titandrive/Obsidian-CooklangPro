@@ -6,6 +6,7 @@ import { BasesView, QueryController, TFile, setIcon } from "obsidian";
 import { minutesIn } from "./textRecipe";
 import { type Diet, fitsDiet } from "./diets";
 import { ingredientNames } from "./recipeSearch";
+import { readSource } from "./recipeSource";
 
 export const INSIGHTS_VIEW = "recipe-insights";
 
@@ -215,7 +216,9 @@ export class RecipeInsightsView extends BasesView {
     const sources = section("Sources");
     const site = (r: Recipe) => {
       try {
-        return typeof r.fm.source === "string" ? new URL(r.fm.source).hostname.replace(/^www\./, "") : "";
+        // A link, or a name and a link; a name alone (a cookbook) has no site.
+        const url = readSource(r.fm.source).url;
+        return url ? new URL(url).hostname.replace(/^www\./, "") : "";
       } catch {
         return "";
       }
@@ -226,24 +229,11 @@ export class RecipeInsightsView extends BasesView {
       // "Websites" sits beside its number.
       sources.tile("Websites", String(new Set(sites.filter(Boolean)).size), `${sites.filter(Boolean).length} recipes with a link`)
         .addClass("is-inline-label");
-      // "8 recipes", then "Without a link" under it: just those words are the link to them (not the whole tile).
+      // "8 recipes" / "Without a link": the whole tile opens them, like the photo tile.
       const noLink = recipes.filter((r) => !site(r));
-      const tile = sources.tile(noLink.length === 1 ? "recipe" : "recipes", String(noLink.length), "Without a link");
-      tile.addClass("is-inline-label");
-      const words = tile.querySelector<HTMLElement>(".cooklang-insights-tile-hint");
-      if (words && noLink.length) {
-        words.addClass("is-link");
-        words.setAttr("role", "button");
-        words.setAttr("tabindex", "0");
-        const show = () => this.actions.filter("No source", noLink.map((r) => r.file));
-        words.addEventListener("click", show);
-        words.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            show();
-          }
-        });
-      }
+      sources.tile(noLink.length === 1 ? "recipe" : "recipes", String(noLink.length), "Without a link", undefined,
+        noLink.length ? () => this.actions.filter("No source link", noLink.map((r) => r.file)) : undefined)
+        .addClass("is-inline-label");
       this.bars(sources.card("Top sources"), topSites);
     }
 
