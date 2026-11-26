@@ -1130,18 +1130,17 @@ button.cook-pill.cook-pill-edit-tags {
     margin: calc(-1 * var(--size-4-2, 8px)) 0 var(--size-4-3, 12px);
   }
 
-  .cooklang-source-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-4-1, 4px);
-    margin-bottom: var(--size-4-3, 12px);
-    font-size: var(--font-ui-small);
-    color: var(--text-muted);
+  .setting-item:first-of-type { border-top: none; }
 
-    input {
-      width: 100%;
-      font-size: var(--font-ui-medium);
-    }
+  .setting-item-control input[type="text"] { width: 100%; }
+
+  .cooklang-source-spacer { flex: 1; }
+
+  .cooklang-source-keys {
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+    text-align: right;
+    margin-top: var(--size-2-3);
   }
 }
 
