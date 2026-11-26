@@ -10,6 +10,7 @@ import { type Diet, dietTags, fitsDiet } from "./diets";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
 import { SourceModal } from "./SourceModal";
 import { readSource } from "./recipeSource";
+import { ingredientNames, matchesSearch, searchTerms, searchText } from "./recipeSearch";
 import { TagEditorModal } from "./TagEditor";
 
 export interface ImporterSettings {
@@ -425,6 +426,7 @@ export class RecipeImporter extends Component {
       const input = el.querySelector<HTMLInputElement>(".cooklang-search-item input");
       if (input && this.app.workspace.getMostRecentLeaf()?.view === view) window.setTimeout(() => input.focus(), 0);
     }
+    this.patchSearch(view);
     const search = el.querySelector<HTMLInputElement>(".bases-search-row input, .cooklang-search-item input");
     if (search && search.placeholder !== "Search recipes") search.placeholder = "Search recipes";
     // Tracked per plugin load (not a mark on the element), so a reloaded plugin wires up boxes in tabs already open.
@@ -543,6 +545,11 @@ export class RecipeImporter extends Component {
 
   private searchFocused = new WeakSet<object>();
   private searchWired = new WeakSet<HTMLElement>();
+  /** Browser views whose search goes through searchRecipeEntries; restored on unload. */
+  private searchPatched = new Set<any>();
+  /** Each recipe's ingredients, read from its text, by path, with the modified time they were read at. */
+  private ingredientIndex = new Map<string, { mtime: number; names: string[] }>();
+  private indexing: Promise<void> | null = null;
   /** Hides the browser's cards until the view named `target` is showing and has stopped redrawing (at most 1s). */
   private hideUntilDrawn(view: any, target: string) {
     const root: HTMLElement | undefined = view?.containerEl;
@@ -1441,7 +1448,78 @@ export class RecipeImporter extends Component {
   }
 
 
+  /**
+   * The browser's search matches everything about a recipe (see recipeSearch.ts), not only what the view shows.
+   * Bases filters a view's entries in its controller's applySearchQuery; the browser's controller gets its own.
+   */
+  private patchSearch(view: any) {
+    const controller = view?.controller;
+    if (!controller || this.searchPatched.has(controller) || typeof controller.applySearchQuery !== "function") return;
+    this.searchPatched.add(controller);
+    const original = controller.applySearchQuery;
+    const plugin = this;
+    controller.applySearchQuery = function (entries: any[], order: unknown) {
+      // The same tab may later show another base: that one keeps Bases' search.
+      if (!(view.file instanceof TFile) || view.file.path !== plugin.browserPath()) return original.call(this, entries, order);
+      try {
+        return plugin.searchRecipeEntries(String(this.searchQuery ?? ""), entries, () => this.requestNotifyView?.());
+      } catch (e) {
+        console.warn("CooklangPro: recipe search failed, using Bases' search", e);
+        return original.call(this, entries, order);
+      }
+    };
+  }
+
+  /** The entries matching a search. Ingredients come from an index read in the background, then the view refreshes. */
+  private searchRecipeEntries(query: string, entries: any[], refresh: () => void): any[] {
+    const terms = searchTerms(query);
+    if (!terms.length) return entries;
+    let missing = false;
+    const out = entries.filter((entry) => {
+      const file = entry?.file;
+      if (!(file instanceof TFile)) return false;
+      const known = this.ingredientIndex.get(file.path);
+      if (!known || known.mtime !== file.stat.mtime) missing = true;
+      return matchesSearch(
+        searchText({
+          name: file.basename,
+          folder: file.parent?.path ?? "",
+          frontmatter: this.app.metadataCache.getFileCache(file)?.frontmatter,
+          ingredients: known?.names,
+        }),
+        terms,
+      );
+    });
+    if (missing) void this.indexIngredients(entries.map((e) => e?.file).filter((f): f is TFile => f instanceof TFile)).then((changed) => changed && refresh());
+    return out;
+  }
+
+  /** Reads the ingredients of recipes not indexed yet (or changed since); true if any were read. */
+  private async indexIngredients(files: TFile[]): Promise<boolean> {
+    while (this.indexing) await this.indexing;
+    const todo = files.filter((f) => this.ingredientIndex.get(f.path)?.mtime !== f.stat.mtime);
+    if (!todo.length) return false;
+    this.indexing = (async () => {
+      for (const f of todo) {
+        try {
+          const text = await this.app.vault.cachedRead(f);
+          this.ingredientIndex.set(f.path, { mtime: f.stat.mtime, names: ingredientNames(text.replace(/^---[\s\S]*?\n---/, "")) });
+        } catch {
+          this.ingredientIndex.set(f.path, { mtime: f.stat.mtime, names: [] });
+        }
+      }
+    })();
+    try {
+      await this.indexing;
+    } finally {
+      this.indexing = null;
+    }
+    return true;
+  }
+
   onunload() {
+    for (const c of this.searchPatched) delete c.applySearchQuery;
+    this.searchPatched.clear();
     document.querySelectorAll(".recipe-importer-rating, .cooklang-show-menu, .cooklang-filter-menu, .cooklang-import-button, .cooklang-sidebar, .cooklang-filter-chip, .cooklang-results-chip").forEach((el) => el.remove());
     document.querySelectorAll(".cooklang-drawer-button, .cooklang-drawer-shade").forEach((el) => el.remove());
     document.querySelectorAll(".cooklang-has-sidebar").forEach((el) => el.removeClass("cooklang-has-sidebar", "cooklang-drawer-open"));

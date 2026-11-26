@@ -5,6 +5,7 @@
 import { BasesView, QueryController, TFile, setIcon } from "obsidian";
 import { minutesIn } from "./textRecipe";
 import { type Diet, fitsDiet } from "./diets";
+import { ingredientNames } from "./recipeSearch";
 
 export const INSIGHTS_VIEW = "recipe-insights";
 
@@ -40,16 +41,6 @@ const shortTime = (m: number) => {
   const r = Math.round(m % 60);
   return h ? (r ? `${h}h ${r}m` : `${h}h`) : `${r}m`;
 };
-
-/** Ingredient names in a Cooklang recipe body: @name{...} or @word. */
-export function ingredientNames(body: string): string[] {
-  const names = new Set<string>();
-  for (const m of body.matchAll(/@([^@#~{}\n]+?)\{|@([\p{L}\p{N}_-]+)/gu)) {
-    const name = (m[1] ?? m[2] ?? "").replace(/^\?/, "").trim().toLowerCase();
-    if (name) names.add(name);
-  }
-  return [...names];
-}
 
 /** Recipes grouped by each value `keys` gives them, biggest group first, with each group's recipes. */
 function rankedRecipes(recipes: Recipe[], keys: (r: Recipe) => string[], limit: number): Row[] {
