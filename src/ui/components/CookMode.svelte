@@ -154,37 +154,43 @@
 
     /** Smallest step text (px) before cook mode lets the step scroll instead of shrinking it further. */
     const MIN_TEXT = 15;
+    /** Largest step text (px): big enough to read from the counter, without a short step or a tablet's room
+     *  turning it into a billboard. */
+    const MAX_TEXT = 28;
 
-    /** Room kept under the step for "For this step" and its first ingredients; more than that scrolls. */
-    const INGREDIENT_PEEK = 110;
+    /** Smallest step text (px) worth keeping so the step's ingredients fit on screen too. */
+    const SHARED_MIN = 20;
 
     /**
-     * The step text at the largest size (up to the stylesheet's) that fits the screen, so a long step shrinks
-     * instead of making you scroll with floury hands. The step comes first: it only shrinks to leave a peek of
-     * the step's ingredients, and the rest of them scroll. Not while every ingredient is shown.
+     * The step text at the size that fits the screen without scrolling. First it tries to fit the whole step
+     * with its ingredients; if that leaves the text big enough (SHARED_MIN), done. If not, the step gets the whole
+     * screen (grown for a short step, shrunk for a long one down to MIN_TEXT) and its ingredients scroll below
+     * it, or beside it on a wide screen. Not while every ingredient is shown.
      */
     function fitText(body: HTMLElement) {
         if (showAll) return;
         const step = body.querySelector<HTMLElement>('.cook-mode-step');
         if (!step) return;
-        step.style.fontSize = '';
-        const ings = body.querySelector<HTMLElement>('.cook-mode-ings');
         const style = getComputedStyle(body);
-        const room = body.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
-            - (ings ? Math.min(ings.offsetHeight, INGREDIENT_PEEK) : 0);
-        const fits = () => step.offsetHeight + parseFloat(getComputedStyle(step).marginBottom) <= room + 1;
-        if (fits()) return;
-        let lo = MIN_TEXT;
-        let hi = parseFloat(getComputedStyle(step).fontSize);
-        if (hi <= lo) return;
-        // Binary search for the largest size that fits, to half a pixel.
-        while (hi - lo > 0.5) {
-            const mid = (lo + hi) / 2;
-            step.style.fontSize = `${mid}px`;
-            if (fits()) lo = mid;
-            else hi = mid;
-        }
-        step.style.fontSize = `${lo}px`;
+        const room = body.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        const all = () => body.scrollHeight <= body.clientHeight + 1;
+        const alone = () => step.offsetHeight <= room + 1;
+        const largest = (fits: () => boolean, lo: number, hi: number): number | null => {
+            step.style.fontSize = `${hi}px`;
+            if (fits()) return hi;
+            step.style.fontSize = `${lo}px`;
+            if (!fits()) return null;
+            // Binary search for the largest size that fits, to half a pixel.
+            while (hi - lo > 0.5) {
+                const mid = (lo + hi) / 2;
+                step.style.fontSize = `${mid}px`;
+                if (fits()) lo = mid;
+                else hi = mid;
+            }
+            return lo;
+        };
+        const size = largest(all, SHARED_MIN, MAX_TEXT) ?? largest(alone, MIN_TEXT, MAX_TEXT) ?? MIN_TEXT;
+        step.style.fontSize = `${size}px`;
     }
 
     function stepNode(node: HTMLElement, _key: number) {
@@ -228,6 +234,7 @@
 
     <div class="cook-mode-body" role="region" aria-label="Current step" use:stepNode={index} onpointerdown={pointerDown} onpointerup={pointerUp}>
         {#if current}
+          <div class="cook-mode-layout">
             <p class="cook-mode-step">
                 {#each current.step.parts as part, partIndex}
                     <StepPart
@@ -239,6 +246,7 @@
                 {/each}
             </p>
 
+            <div class="cook-mode-side">
             {#if stepIngredients.length}
                 <section class="cook-mode-ings" aria-label="Ingredients for this step">
                     <h3 class="cook-mode-label">For this step</h3>
@@ -268,6 +276,8 @@
             {#if showAll}
                 <div class="cook-mode-all-list"><IngredientList {model} /></div>
             {/if}
+            </div>
+          </div>
         {:else}
             <p class="cook-mode-empty">This recipe has no steps.</p>
         {/if}
@@ -276,7 +286,7 @@
     <footer class="cook-mode-foot">
         {#if next}
             <button type="button" class="cook-mode-next-card" onclick={() => go(index + 1)} aria-label="Go to the next step">
-                <span class="cook-mode-label">Next{#if next.section && next.section !== current?.section} · {next.section}{/if}</span>
+                <span class="cook-mode-label">{`Next${next.section && next.section !== current?.section ? ` · ${next.section}` : ''}:`}</span>
                 <span class="cook-mode-next-text">{plain(next.step.parts)}</span>
             </button>
         {/if}
