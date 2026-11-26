@@ -2287,7 +2287,7 @@ button.cook-mode-next-card {
 }
 .cook-mode-buttons {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1fr 1fr;
   gap: var(--size-4-3);
   button {
     display: inline-flex;

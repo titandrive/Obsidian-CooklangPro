@@ -26,6 +26,14 @@ export class CookView extends TextFileView {
         this.component = mount(CookViewRoot, { target: this.contentEl, props: { preview: this.previewStore } });
         this.scope = new Scope(this.app.scope);
         this.scope.register(['Mod'], 'e', () => { void this.editSource(this.leaf); return false; });
+        // Enter on an open recipe starts cook mode (not while typing, or on a button or link, which keep Enter).
+        this.scope.register([], 'Enter', (evt) => {
+            if (this.cookMode || evt.defaultPrevented) return true;
+            const target = evt.target as HTMLElement | null;
+            if (target?.closest('input, textarea, select, button, a, [contenteditable="true"], .cook-mode')) return true;
+            this.setCookMode(true);
+            return false;
+        });
     }
 
     private get session(): RecipeSession | null {

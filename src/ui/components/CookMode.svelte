@@ -3,7 +3,7 @@
     // It shares the recipe view's state: the same scaled amounts, ingredient checkmarks, current step and timers
     // (timer keys match MethodSteps, so a timer started here keeps running in the recipe and back).
     import { onMount, tick } from 'svelte';
-    import { setIcon } from 'obsidian';
+    import { Platform, setIcon } from 'obsidian';
     import { cookware_display_name, ingredient_display_name, quantity_display } from '../../recipeHelpers';
     import { getSections, type StepPart as Part } from '../../utils/sectionHelpers';
     import {
@@ -100,9 +100,18 @@
         go(dx < 0 ? index + 1 : index - 1);
     }
 
+    // Space or → next, ← back, Enter shows or hides every ingredient, Esc closes. They win over a focused button
+    // (so Space after clicking Next goes on, not clicks it again); a checkbox or timer slider keeps its own keys.
     function keydown(e: KeyboardEvent) {
-        if ((e.target as Element).closest('input[type="range"]')) return;
-        if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') {
+        if ((e.target as Element).closest('input[type="range"], .cook-timer-range-popover')) return;
+        const onCheckbox = !!(e.target as Element).closest('input[type="checkbox"]');
+        if (e.key === ' ' && !onCheckbox) {
+            e.preventDefault();
+            go(index + 1);
+        } else if (e.key === 'Enter' && !onCheckbox) {
+            e.preventDefault();
+            showAll = !showAll;
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') {
             e.preventDefault();
             go(index + 1);
         } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
@@ -236,10 +245,14 @@
                 </button>
             {:else}
                 <button type="button" class="mod-cta cook-mode-forward" onclick={() => go(index + 1)}>
-                    Next step<span use:icon={'arrow-right'}></span>
+                    Next<span use:icon={'arrow-right'}></span>
                 </button>
             {/if}
         </div>
-        {#if awake}<div class="cook-mode-awake">Screen stays on while cooking</div>{/if}
+        {#if !Platform.isMobile}
+            <div class="cook-mode-awake">Space next · ← back · Enter all ingredients · Esc close{#if awake} · Screen stays on{/if}</div>
+        {:else if awake}
+            <div class="cook-mode-awake">Screen stays on while cooking</div>
+        {/if}
     </footer>
 </div>
