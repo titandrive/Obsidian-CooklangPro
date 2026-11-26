@@ -2181,6 +2181,13 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
   .mobile-navbar, .mobile-toolbar { display: none !important; }
 }
 .is-mobile .cook-mode { z-index: var(--layer-modal, 50); }
+.is-mobile {
+  .cook-mode-body { padding: var(--size-4-4) var(--size-4-4) var(--size-4-3); }
+  .cook-mode-step { font-size: 1.45em; margin-bottom: var(--size-4-4); line-height: 1.45; }
+  .cook-mode-ings li label { padding: 6px var(--size-4-3); font-size: 1em; }
+  .cook-mode-foot { padding: var(--size-4-2) var(--size-4-3) var(--size-4-3); }
+  button.cook-mode-next-card { margin-bottom: var(--size-4-2); }
+}
 .cook-mode-head {
   display: flex;
   align-items: center;
@@ -2210,6 +2217,7 @@ body:not(.is-mobile) .cooklang-recipe-browser.cooklang-search-always .bases-sear
 }
 .cook-mode-step {
   font-size: clamp(1.3em, 1.8vw, 1.6em);
+  transition: none;
   line-height: 1.5;
   margin: 0 0 var(--size-4-6);
 }

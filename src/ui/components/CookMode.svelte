@@ -152,9 +152,54 @@
         };
     });
 
+    /** Smallest step text (px) before cook mode lets the step scroll instead of shrinking it further. */
+    const MIN_TEXT = 15;
+
+    /** Room kept under the step for "For this step" and its first ingredients; more than that scrolls. */
+    const INGREDIENT_PEEK = 110;
+
+    /**
+     * The step text at the largest size (up to the stylesheet's) that fits the screen, so a long step shrinks
+     * instead of making you scroll with floury hands. The step comes first: it only shrinks to leave a peek of
+     * the step's ingredients, and the rest of them scroll. Not while every ingredient is shown.
+     */
+    function fitText(body: HTMLElement) {
+        if (showAll) return;
+        const step = body.querySelector<HTMLElement>('.cook-mode-step');
+        if (!step) return;
+        step.style.fontSize = '';
+        const ings = body.querySelector<HTMLElement>('.cook-mode-ings');
+        const style = getComputedStyle(body);
+        const room = body.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+            - (ings ? Math.min(ings.offsetHeight, INGREDIENT_PEEK) : 0);
+        const fits = () => step.offsetHeight + parseFloat(getComputedStyle(step).marginBottom) <= room + 1;
+        if (fits()) return;
+        let lo = MIN_TEXT;
+        let hi = parseFloat(getComputedStyle(step).fontSize);
+        if (hi <= lo) return;
+        // Binary search for the largest size that fits, to half a pixel.
+        while (hi - lo > 0.5) {
+            const mid = (lo + hi) / 2;
+            step.style.fontSize = `${mid}px`;
+            if (fits()) lo = mid;
+            else hi = mid;
+        }
+        step.style.fontSize = `${lo}px`;
+    }
+
     function stepNode(node: HTMLElement, _key: number) {
-        // A new step starts at the top.
-        return { update: () => node.scrollTo({ top: 0 }) };
+        const fit = () => window.requestAnimationFrame(() => fitText(node));
+        const resize = new ResizeObserver(fit);
+        resize.observe(node);
+        fit();
+        return {
+            // A new step starts at the top, at the size that fits it.
+            update: () => {
+                node.scrollTo({ top: 0 });
+                void tick().then(fit);
+            },
+            destroy: () => resize.disconnect(),
+        };
     }
 </script>
 
