@@ -5,6 +5,6 @@
   "authorUrl": "https://github.com/titandrive/Obsidian-CooklangPro",
   "description": "Edit, display and import Cooklang recipes, with a recipe browser and ratings. A fork of Cooklang Editor.",
   "isDesktopOnly": false,
-  "version": "0.15.98",
+  "version": "0.15.99",
   "minAppVersion": "1.8.0"
 }

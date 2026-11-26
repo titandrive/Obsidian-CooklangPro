@@ -8,6 +8,7 @@ import { INSIGHTS_VIEW, RecipeInsightsView } from "./insights";
 import { syncBrowserRows } from "./rating";
 import { type Diet, dietTags, fitsDiet } from "./diets";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
+import { SourceModal } from "./SourceModal";
 import { TagEditorModal } from "./TagEditor";
 
 export interface ImporterSettings {
@@ -273,6 +274,16 @@ export class RecipeImporter extends Component {
         return true;
       },
     });
+    this.host.addCommand({
+      id: "set-recipe-source",
+      name: "Set recipe source",
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || !this.isRecipe(file)) return false;
+        if (!checking) new SourceModal(this.app, file).open();
+        return true;
+      },
+    });
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
         if (!(file instanceof TFile) || !this.isRecipe(file)) return;
@@ -287,6 +298,7 @@ export class RecipeImporter extends Component {
             .onClick(() => this.openTagEditor(group)),
         );
         menu.addItem((item) => item.setTitle("Set recipe photo").setIcon("image").onClick(() => this.openPhotoModal(file)));
+        menu.addItem((item) => item.setTitle("Set recipe source").setIcon("link").onClick(() => new SourceModal(this.app, file).open()));
       }),
     );
     // Several files selected in the file explorer.

@@ -1057,6 +1057,30 @@ button.cook-pill.cook-pill-edit-tags {
   display: none;
 }
 
+/* Set recipe source window */
+.cooklang-source-modal {
+  width: min(480px, 92vw);
+
+  .cooklang-photo-recipe {
+    color: var(--text-muted);
+    margin: calc(-1 * var(--size-4-2, 8px)) 0 var(--size-4-3, 12px);
+  }
+
+  .cooklang-source-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-1, 4px);
+    margin-bottom: var(--size-4-3, 12px);
+    font-size: var(--font-ui-small);
+    color: var(--text-muted);
+
+    input {
+      width: 100%;
+      font-size: var(--font-ui-medium);
+    }
+  }
+}
+
 /* Set recipe photo window */
 .cooklang-photo-modal {
   width: min(480px, 92vw);
