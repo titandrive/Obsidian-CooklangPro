@@ -158,14 +158,11 @@
      *  turning it into a billboard. */
     const MAX_TEXT = 28;
 
-    /** Smallest step text (px) worth keeping so the step's ingredients fit on screen too. */
-    const SHARED_MIN = 20;
-
     /**
-     * The step text at the size that fits the screen without scrolling. First it tries to fit the whole step
-     * with its ingredients; if that leaves the text big enough (SHARED_MIN), done. If not, the step gets the whole
-     * screen (grown for a short step, shrunk for a long one down to MIN_TEXT) and its ingredients scroll below
-     * it, or beside it on a wide screen. Not while every ingredient is shown.
+     * The step text at the size that fills the screen: grown for a short step (up to MAX_TEXT), shrunk for a long
+     * one (down to MIN_TEXT, then it scrolls). The step always comes first: its ingredients are never allowed to
+     * make it smaller. They show beside it on a wide screen, below it otherwise, and scroll when there's no room.
+     * Not while every ingredient is shown.
      */
     function fitText(body: HTMLElement) {
         if (showAll) return;
@@ -173,7 +170,6 @@
         if (!step) return;
         const style = getComputedStyle(body);
         const room = body.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-        const all = () => body.scrollHeight <= body.clientHeight + 1;
         const alone = () => step.offsetHeight <= room + 1;
         const largest = (fits: () => boolean, lo: number, hi: number): number | null => {
             step.style.fontSize = `${hi}px`;
@@ -189,7 +185,8 @@
             }
             return lo;
         };
-        const size = largest(all, SHARED_MIN, MAX_TEXT) ?? largest(alone, MIN_TEXT, MAX_TEXT) ?? MIN_TEXT;
+        // The step's own size, never made smaller to fit its ingredients (they're in the step text already).
+        const size = largest(alone, MIN_TEXT, MAX_TEXT) ?? MIN_TEXT;
         step.style.fontSize = `${size}px`;
     }
 
