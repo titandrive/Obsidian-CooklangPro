@@ -3,7 +3,9 @@
     import { getRecipeImageUrls } from '../utils/recipeImages';
     import { photoLinkText } from '../utils/recipeMarks';
     import CookwareList from './components/CookwareList.svelte';
+    import CookMode from './components/CookMode.svelte';
     import Hero from './components/Hero.svelte';
+    import { recipeName } from '../utils/recipeFiles';
     import IngredientList from './components/IngredientList.svelte';
     import Metadata from './components/Metadata.svelte';
     import MethodSteps from './components/MethodSteps.svelte';
@@ -37,3 +39,7 @@
 </div>
 
 <Metadata {model} />
+
+{#if model.state.cookMode && model.callbacks.onCookMode}
+    <CookMode {model} title={model.recipe.title?.trim() || (model.file && recipeName(model.file.path)) || 'Recipe'} />
+{/if}

@@ -24,6 +24,7 @@
   - Views: all recipes, by folder, favorites, top rated, and a table.
   - An Options menu (settings cog) on the toolbar picks what the cards show (heart, stars, folder, time, servings, tags) and whether recipes open in a new tab.
   - Recipes open in a new tab, which you can turn off.
+- **Cook mode** (Cook button under the title, or the "Start cook mode" command): one step at a time in big type, with that step's ingredients and amounts to tick off, its timers, and the next step below. Back and Next, swipe, or the arrow keys move between steps; Esc closes. Shares the recipe's scale, checkmarks, timers and current step, and keeps the screen on while open.
 - **Favorites and ratings**: a heart and 1 to 5 stars under each recipe's title and on every browser card, saved as `favorite` and `rating` properties.
 - **Set recipe source** (command or card menu): a link, a name (a cookbook), or both.
 - **Set recipe photo** (command or file menu): from a link, a file, a pasted image or the phone's camera. Photos are resized and saved in a photos folder or beside the recipe, as you choose in settings.

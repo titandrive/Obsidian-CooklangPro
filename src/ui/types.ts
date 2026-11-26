@@ -12,12 +12,18 @@ export interface PreviewState {
     displayServings: number | null;
     checkedIngredients: Set<string>;
     currentStep: number;
+    /** Cook mode (one step at a time) is open. */
+    cookMode?: boolean;
 }
 
 export interface PreviewCallbacks {
     onScaleChange: (targetServings: number) => void;
     onIngredientToggle: (ingredientName: string) => void;
     onStepActivate: (globalStepIndex: number) => void;
+    /** Makes this the current step (cook mode's Back and Next). */
+    onStepSet?: (globalStepIndex: number) => void;
+    /** Opens or closes cook mode; only views that have it. */
+    onCookMode?: (open: boolean) => void;
 }
 
 export interface ResolvedRecipeReference {

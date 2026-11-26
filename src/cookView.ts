@@ -121,7 +121,7 @@ export class CookView extends TextFileView {
             instanceId: session.instanceId, interactive: true, recipe, file: this.file,
             settings: this.settings, host: this.host, timers: session.timers,
             state: { scale: session.scale, baseServings, displayServings,
-                checkedIngredients: session.checkedIngredients, currentStep: session.currentStep },
+                checkedIngredients: session.checkedIngredients, currentStep: session.currentStep, cookMode: this.cookMode },
             callbacks: {
                 onScaleChange: target => {
                     if (baseServings == null) return;
@@ -137,8 +137,22 @@ export class CookView extends TextFileView {
                     session.currentStep = session.currentStep === index ? -1 : index;
                     this.renderPreview();
                 },
+                onStepSet: index => {
+                    session.currentStep = index;
+                    this.renderPreview();
+                },
+                onCookMode: open => this.setCookMode(open),
             },
         });
+    }
+
+    /** Cook mode: the recipe one step at a time over this tab. */
+    cookMode = false;
+
+    setCookMode(open: boolean): void {
+        if (this.cookMode === open) return;
+        this.cookMode = open;
+        this.renderPreview();
     }
 
     updateSettings(settings: CooklangSettings): void {

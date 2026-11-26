@@ -100,7 +100,18 @@
                 {/if}
             </div>
         {/if}
-        <RecipeMarks {model} />
+        <div class="cook-hero-actions">
+            <RecipeMarks {model} />
+            {#if model.interactive && model.callbacks.onCookMode}
+                <button
+                    type="button"
+                    class="mod-cta cook-start-btn"
+                    aria-label="Cook mode: one step at a time"
+                    onclick={() => model.callbacks.onCookMode?.(true)}
+                    use:icon={'cooking-pot'}
+                ><span>Cook</span></button>
+            {/if}
+        </div>
     </div>
 
     {#if model.settings.showImages && mainImageUrl}
