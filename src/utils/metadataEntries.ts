@@ -20,9 +20,9 @@ const PILL_KEYS: Partial<Record<string, PillKind>> = {
 
 /**
  * CooklangPro's own properties, shown elsewhere in the view: `recipe` marks the note as a recipe, `photo` is the
- * hero image, `favorite` and `rating` are the heart and stars.
+ * hero image, `favorite` and `rating` are the heart and stars, `added` is the date under the title.
  */
-const OWN_KEYS = new Set(['recipe', 'photo', 'favorite', 'rating']);
+const OWN_KEYS = new Set(['recipe', 'photo', 'favorite', 'rating', 'added']);
 
 function hasText(value: unknown): boolean {
     return value != null && String(value).trim().length > 0;

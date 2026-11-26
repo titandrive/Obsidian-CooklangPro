@@ -7,6 +7,7 @@ import { minutesIn } from "./textRecipe";
 import { type Diet, fitsDiet } from "./diets";
 import { ingredientNames } from "./recipeSearch";
 import { readSource } from "./recipeSource";
+import { addedTime } from "./recipeDates";
 
 export const INSIGHTS_VIEW = "recipe-insights";
 
@@ -24,6 +25,8 @@ export interface InsightActions {
   view(name: string): void;
   /** The diets set in settings. */
   diets(): Diet[];
+  /** A recipe's photo, ready for an img, or null. */
+  photoUrl(file: TFile): string | null;
 }
 
 const num = (v: unknown): number | null => {
@@ -153,6 +156,36 @@ export class RecipeInsightsView extends BasesView {
     overview.tile("With photos", `${Math.round((100 * withPhoto.length) / recipes.length)}%`,
       noPhoto.length ? `${noPhoto.length} missing · show` : `${withPhoto.length} of ${recipes.length}`, undefined,
       noPhoto.length ? () => this.actions.filter("No photo", noPhoto.map((r) => r.file)) : undefined);
+
+    // Latest recipes: the five added most recently, with their photos, across the whole width.
+    const latest = [...recipes]
+      .map((r) => ({ r, at: addedTime(r.fm.added, r.file.stat.ctime) }))
+      .sort((a, b) => b.at - a.at || b.r.file.stat.ctime - a.r.file.stat.ctime)
+      .slice(0, 5);
+    if (latest.length) {
+      const card = overview.card("Latest recipes", undefined, "calendar-plus");
+      card.addClass("is-wide");
+      const more = card.querySelector<HTMLElement>(".cooklang-insights-card-head")!.createEl("a", { cls: "cooklang-insights-link cooklang-insights-more", text: "All by date", attr: { href: "#" } });
+      more.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.actions.view("Recently added");
+      });
+      const row = card.createDiv({ cls: "cooklang-insights-latest" });
+      const dateText = (t: number) => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+      for (const { r, at } of latest) {
+        const item = row.createEl("a", { cls: "cooklang-insights-latest-item", attr: { href: "#", "aria-label": `${r.file.basename}, added ${dateText(at)}` } });
+        const pic = item.createDiv({ cls: "cooklang-insights-latest-photo" });
+        const url = this.actions.photoUrl(r.file);
+        if (url) pic.createEl("img", { attr: { src: url, alt: "", loading: "lazy" } });
+        else setIcon(pic, "chef-hat");
+        item.createDiv({ cls: "cooklang-insights-latest-name", text: r.file.basename });
+        item.createDiv({ cls: "cooklang-insights-muted", text: dateText(at) });
+        item.addEventListener("click", (e) => {
+          e.preventDefault();
+          this.actions.open(r.file);
+        });
+      }
+    }
 
     // Collection
     const collection = section("Collection");

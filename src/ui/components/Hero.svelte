@@ -4,10 +4,16 @@
     import type { RecipeRenderModel } from '../types';
     import { recipeName } from '../../utils/recipeFiles';
     import RecipeMarks from './RecipeMarks.svelte';
+    import { addedTime, shortDate } from '../../importer/recipeDates';
 
     let { model, mainImage }: { model: RecipeRenderModel; mainImage: TFile | string | null } = $props();
     let title = $derived(model.recipe.title?.trim() || (model.file && recipeName(model.file.path)) || 'Recipe');
     let description = $derived(model.recipe.description?.trim());
+    // When the recipe was added (its `added` property), in small text under the title.
+    let added = $derived.by(() => {
+        const t = addedTime(model.recipe.rawMetadata?.get?.('added'), NaN);
+        return Number.isFinite(t) ? shortDate(t, true) : null;
+    });
     let allPills = $derived(buildMetaPills(model.recipe, model.state.displayServings));
     // Details (time, servings, source...) on one line, tags on the next.
     let pills = $derived(allPills.filter(pill => pill.kind !== 'tag'));
@@ -32,6 +38,9 @@
 <header class="cook-hero">
     <div class="cook-hero-body">
         <h1 class="cook-hero-title">{title}</h1>
+        {#if added}
+            <div class="cook-hero-added">Added {added}</div>
+        {/if}
         {#if description}
             <p class="cook-hero-desc">{description}</p>
         {/if}

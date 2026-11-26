@@ -10,6 +10,7 @@ import { type Diet, dietTags, fitsDiet } from "./diets";
 import { PhotoModal, resizePhoto } from "./PhotoModal";
 import { SourceModal } from "./SourceModal";
 import { readSource } from "./recipeSource";
+import { addedTime, localDate, shortDate, withAdded } from "./recipeDates";
 import { ingredientNames, matchesSearch, searchTerms, searchText } from "./recipeSearch";
 import { TagEditorModal } from "./TagEditor";
 
@@ -24,7 +25,7 @@ export interface ImporterSettings {
   /** Vault path of the photos folder when `photoLocation` is "folder", e.g. "Recipes/Photos". */
   photosFolder: string;
   /** What the recipe browser's cards show, set from its "Options" toolbar menu. */
-  cardShow: { heart: boolean; stars: boolean; time: boolean; servings: boolean; folder: boolean };
+  cardShow: { heart: boolean; stars: boolean; time: boolean; servings: boolean; added: boolean; folder: boolean };
   /** Clicking a recipe in the recipe browser opens it in a new tab instead of the browser's tab. */
   browserNewTab: boolean;
   /** Use Claude when there's an API key; switched in the import dialog. */
@@ -35,6 +36,10 @@ export interface ImporterSettings {
   tagViewUngrouped: boolean;
   /** The Insights view was added to an existing recipe browser (done once, so deleting it sticks). */
   insightsViewAdded: boolean;
+  /** The Recently added view was added to an existing recipe browser (done once, so deleting it sticks). */
+  recentViewAdded: boolean;
+  /** Recipes made before the `added` property got one from their file's creation time (done once). */
+  addedBackfilled: boolean;
   /** What the All recipes view is narrowed to after a click in Insights ("garlic", "★★★"), for its toolbar chip. */
   resultsLabel: string;
   /** Diets for the Filter menu and Insights: a recipe fits a diet when it has any of the diet's tags. */
@@ -51,12 +56,14 @@ export const DEFAULT_IMPORTER_SETTINGS: ImporterSettings = {
   saveImage: true,
   photoLocation: "folder",
   photosFolder: "Recipes/Photos",
-  cardShow: { heart: true, stars: true, time: true, servings: true, folder: true },
+  cardShow: { heart: true, stars: true, time: true, servings: true, added: true, folder: true },
   browserNewTab: true,
   useClaude: true,
   tagViewAdded: false,
   tagViewUngrouped: false,
   insightsViewAdded: false,
+  recentViewAdded: false,
+  addedBackfilled: false,
   resultsLabel: "",
   diets: [
     { name: "Vegan", tags: ["vegan"] },
@@ -152,10 +159,13 @@ function recipeBaseContent(): string {
     "    displayName: Tags",
     "  note.source:",
     "    displayName: Source",
+    "  note.added:",
+    "    displayName: Added",
     "  formula.first_tag:",
     "    displayName: Tag",
     "views:",
     ...cards("All recipes", ["    icon: chef-hat"]),
+    ...cards("Recently added", ["    icon: calendar-plus"], [["note.added", "DESC"], ["file.ctime", "DESC"]]),
     ...cards("By folder", ["    icon: folder", "    groupBy:", "      property: file.folder", "      direction: ASC"]),
     ...cards("By tag", ["    icon: tag"]),
     ...cards("Favorites", ["    icon: heart", "    filters:", "      and:", "        - favorite == true"]),
@@ -239,6 +249,10 @@ export class RecipeImporter extends Component {
           void this.applySelection({ controller }, name, kind, this.pickerOptions(kind), new Set([value]));
         },
         diets: () => this.settings.diets.filter((d) => d.name.trim() && d.tags.length),
+        photoUrl: (file) => {
+          const photo = this.currentPhoto(file);
+          return photo ? this.app.vault.getResourcePath(photo) : null;
+        },
         view: (name) => {
           if ((controller?.getQueryViewNames?.() ?? []).includes(name)) controller.selectView(name);
         },
@@ -247,6 +261,7 @@ export class RecipeImporter extends Component {
     });
     // An Insights tab that was already open keeps the view object from the previous version of the plugin, so a
     // plugin update wouldn't reach it. Rebuild those tabs so they run the current code.
+    this.app.workspace.onLayoutReady(() => this.backfillAdded());
     this.app.workspace.onLayoutReady(() => {
       for (const leaf of this.app.workspace.getLeavesOfType("bases")) {
         if ((leaf.view as any)?.controller?.view?.type === INSIGHTS_VIEW) void (leaf as any).rebuildView?.();
@@ -408,7 +423,7 @@ export class RecipeImporter extends Component {
     // The browser's base, parsed, for the folder and tag views (the By tag view is added once if missing).
     if (!this.browserBase() && !this.baseLoading) {
       this.baseLoading = true;
-      void this.ensureRecipeFilter().then(() => this.ensureTagView()).then(() => this.ungroupTagView()).then(() => this.ensureInsightsView()).then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
+      void this.ensureRecipeFilter().then(() => this.ensureTagView()).then(() => this.ungroupTagView()).then(() => this.ensureInsightsView()).then(() => this.ensureRecentView()).then(() => this.loadBrowserBase()).then(() => this.refreshBrowsers()).finally(() => (this.baseLoading = false));
     }
     this.renderSidebar(view);
     this.resultsChip(view);
@@ -658,6 +673,67 @@ export class RecipeImporter extends Component {
       data.views.push({ type: INSIGHTS_VIEW, name: "Insights", icon: "chart-bar" });
       return stringifyYaml(data);
     });
+  }
+
+  /** Adds the Recently added view (after All recipes) to a browser made before it existed. Once only. */
+  private async ensureRecentView() {
+    if (this.settings.recentViewAdded) return;
+    const file = this.app.vault.getAbstractFileByPath(this.browserPath());
+    if (!(file instanceof TFile)) return;
+    this.settings.recentViewAdded = true;
+    await this.saveSettings();
+    await this.app.vault.process(file, (text) => {
+      const data = parseYaml(text);
+      if (!Array.isArray(data?.views) || data.views.some((v: any) => v?.name === "Recently added")) return text;
+      const all = data.views.find((v: any) => v?.name === "All recipes") ?? data.views.find((v: any) => v?.type === "cards" && !v?.groupBy);
+      const view = {
+        ...(all ?? { type: "cards", image: "note.photo", cardSize: 200, order: ["file.name", "formula.details", "note.tags"] }),
+        name: "Recently added",
+        icon: "calendar-plus",
+        sort: [{ property: "note.added", direction: "DESC" }, { property: "file.ctime", direction: "DESC" }],
+      };
+      delete view.groupBy;
+      delete view.filters;
+      data.properties = { ...(data.properties ?? {}), "note.added": { displayName: "Added" } };
+      data.views.splice(all ? data.views.indexOf(all) + 1 : 0, 0, view);
+      return stringifyYaml(data);
+    });
+  }
+
+  /**
+   * Gives recipes made before imports set `added` one, from their file's creation time. Once, and only on desktop:
+   * a phone's copy of a file is usually created when it synced, not when the recipe was added.
+   */
+  private backfillAdded() {
+    if (this.settings.addedBackfilled || Platform.isMobile) return;
+    const run = async () => {
+      if (this.settings.addedBackfilled) return;
+      this.settings.addedBackfilled = true;
+      await this.saveSettings();
+      let n = 0;
+      for (const file of this.app.vault.getMarkdownFiles()) {
+        const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+        if (fm?.recipe !== true || fm.added) continue;
+        try {
+          await this.app.fileManager.processFrontMatter(file, (f: Record<string, unknown>) => {
+            if (!f.added) f.added = localDate(new Date(file.stat.ctime));
+          });
+          n++;
+        } catch (e) {
+          console.warn(`CooklangPro: couldn't set the added date of ${file.path}`, e);
+        }
+      }
+      if (n) new Notice(`Added dates set on ${n} recipe${n === 1 ? "" : "s"}, from when their files were created.`);
+    };
+    // Front matter is only complete once the metadata cache has read every file.
+    if ((this.app.metadataCache as any).initialized !== false) void run();
+    else {
+      const ref = this.app.metadataCache.on("resolved", () => {
+        this.app.metadataCache.offref(ref);
+        void run();
+      });
+      this.registerEvent(ref);
+    }
   }
 
   /** Older browsers grouped the By tag view by each recipe's first tag, which read as a jumble; make it a list. */
@@ -1236,6 +1312,8 @@ export class RecipeImporter extends Component {
       if (show.servings && fm.servings) {
         parts.push(["utensils", String(fm.servings), `${fm.servings} serving${Number(fm.servings) === 1 ? "" : "s"}`]);
       }
+      const added = addedTime(fm.added, NaN);
+      if (show.added && Number.isFinite(added)) parts.push(["calendar", shortDate(added), `Added ${shortDate(added, true)}`]);
       const key = JSON.stringify(parts);
       if (line.dataset.cooklangDetails === key) continue;
       line.dataset.cooklangDetails = key;
@@ -1435,12 +1513,13 @@ export class RecipeImporter extends Component {
     menu.addSeparator();
     const setDetails = () => {
       // With neither time nor servings, drop the details line so the cards get shorter.
-      const want = show.time || show.servings;
+      const want = show.time || show.servings || show.added;
       if (want && !has("formula.details")) insert("formula.details", 1);
       if (!want && has("formula.details")) remove("formula.details");
     };
     toggle("Time", show.time, () => { show.time = !show.time; setDetails(); });
     toggle("Servings", show.servings, () => { show.servings = !show.servings; setDetails(); });
+    toggle("Date added", show.added, () => { show.added = !show.added; setDetails(); });
     toggle("Tags", has("tags"), () => (has("tags") ? remove("tags") : insert("tags", order().length)));
     menu.addSeparator();
     toggle("Open recipes in a new tab", this.settings.browserNewTab, () => (this.settings.browserNewTab = !this.settings.browserNewTab));
@@ -1634,7 +1713,7 @@ export class RecipeImporter extends Component {
 
     let base = safeFileName(title);
     for (let n = 2; this.app.vault.getAbstractFileByPath(`${dir}/${base}.md`); n++) base = `${safeFileName(title)} ${n}`;
-    const file = await this.app.vault.create(`${dir}/${base}.md`, p.markdown);
+    const file = await this.app.vault.create(`${dir}/${base}.md`, withAdded(p.markdown, localDate(new Date())));
 
     if (this.settings.saveImage && p.recipe?.imageUrl) {
       try {
