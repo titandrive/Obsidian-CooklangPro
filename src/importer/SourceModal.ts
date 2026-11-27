@@ -12,7 +12,7 @@ export class SourceModal extends Modal {
 
   onOpen() {
     const { contentEl, modalEl, file } = this;
-    modalEl.addClass("cooklang-source-modal");
+    modalEl.addClass("cooklang-source-modal", "cooklang-modal");
     contentEl.createDiv({ cls: "cooklang-photo-recipe", text: file.basename });
 
     const current = readSource(this.app.metadataCache.getFileCache(file)?.frontmatter?.source);

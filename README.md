@@ -13,9 +13,9 @@
 ## New features
 
 - **Import recipe** (chef-hat button or command):
-  - From a link: the link is checked as soon as you paste it, showing the recipe found (name, photo, ingredients, steps, time).
-  - From text: paste a recipe in any layout.
-  - From a photo (needs Claude): photograph a cookbook page or recipe card, or choose, drop or paste photos. A recipe over several pages can take several photos.
+  - Link: the link is checked as soon as you paste it, showing the recipe found (name, photo, ingredients, steps, time).
+  - Text: paste a recipe in any layout.
+  - Photo (needs Claude): photograph a cookbook page or recipe card, or choose, drop or paste photos. A recipe over several pages can take several photos.
   - The recipe's photo is downloaded, and tags and a folder are suggested.
   - Optional Claude conversion with an Anthropic API key: better ingredient marking, and it handles pages without recipe data and messy pasted text. You can switch it on or off and pick the model in the dialog, with progress shown as it converts. Without Claude, a built-in converter is used.
   - Usable from the keyboard: Ctrl/Cmd+Enter imports or saves, Ctrl/Cmd+1 to 3 switch tabs, Alt+Left goes back.

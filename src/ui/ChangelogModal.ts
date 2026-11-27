@@ -15,7 +15,7 @@ export class ChangelogModal extends Modal {
     async onOpen(): Promise<void> {
         this.contentEl.empty();
         this.titleEl.setText(`What's new in ${this.pluginName} ${this.version}`);
-        this.modalEl.addClass('cook-changelog-modal');
+        this.modalEl.addClass('cook-changelog-modal', 'cooklang-modal');
 
         const notesEl = this.contentEl.createDiv({ cls: 'cook-changelog markdown-rendered' });
         this.renderComponent = new Component();

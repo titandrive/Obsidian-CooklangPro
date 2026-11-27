@@ -1873,7 +1873,7 @@ class ImportModal extends Modal {
 
   onOpen() {
     this.setTitle("Import recipe");
-    this.modalEl.addClass("recipe-importer-modal", "cooklang-themed-select");
+    this.modalEl.addClass("recipe-importer-modal", "cooklang-themed-select", "cooklang-modal");
     // Keyboard: Ctrl/Cmd+Enter does the screen's main action anywhere in the dialog, Enter does it from a
     // one-line field, Ctrl/Cmd+1 and 2 switch tabs, Alt+Left goes back. Escape closes (and cancels).
     this.scope.register(["Mod"], "Enter", () => {
@@ -1956,12 +1956,12 @@ class ImportModal extends Modal {
         attr: { role: "tab", "aria-selected": String(id === active), tabindex: id === active ? "0" : "-1" },
       });
       setIcon(b.createSpan({ cls: "recipe-importer-check-icon" }), icon);
-      b.createSpan({ text: label });
+      b.createSpan({ cls: "recipe-importer-tab-label", text: label });
       b.addEventListener("click", () => id !== active && open());
     };
-    tab("link", "link", "From a link", () => this.showUrlStep());
-    tab("text", "text", "From text", () => this.showTextStep());
-    if (ids.includes("photo")) tab("photo", "camera", "From a photo", () => this.showPhotoStep());
+    tab("link", "link", "Link", () => this.showUrlStep());
+    tab("text", "text", "Text", () => this.showTextStep());
+    if (ids.includes("photo")) tab("photo", "camera", "Photo", () => this.showPhotoStep());
   }
 
   /**
@@ -2018,9 +2018,11 @@ class ImportModal extends Modal {
     contentEl.empty();
     this.tabs("photo");
 
+    // Desktop: one box to click, drop or paste into. Phone: the box holds two big buttons, the camera and the
+    // photo picker (rebuilt with the box on every update, so they're always there).
     const drop = contentEl.createDiv({
-      cls: "recipe-importer-photo-drop",
-      attr: { tabindex: "0", role: "button", "aria-label": "Choose photos of a recipe, or drop them here" },
+      cls: "recipe-importer-photo-drop" + (Platform.isMobile ? " is-mobile-picker" : ""),
+      attr: Platform.isMobile ? {} : { tabindex: "0", role: "button", "aria-label": "Choose photos of a recipe, or drop them here" },
     });
     const thumbs = contentEl.createDiv({ cls: "recipe-importer-photo-thumbs" });
     const check = contentEl.createDiv({ cls: "recipe-importer-check" });
@@ -2031,9 +2033,6 @@ class ImportModal extends Modal {
 
     let button!: import("obsidian").ButtonComponent;
     const actions = new Setting(contentEl);
-    if (Platform.isMobile) {
-      actions.addExtraButton((b) => b.setIcon("camera").setTooltip("Take a photo").onClick(() => camera.click()));
-    }
     actions.addButton((b) => {
       button = b;
       b.setButtonText("Import").setCta().onClick(() => go());
@@ -2066,12 +2065,21 @@ class ImportModal extends Modal {
     };
     const update = () => {
       drop.empty();
-      setIcon(drop.createSpan({ cls: "recipe-importer-photo-drop-icon" }), "image-plus");
-      drop.createSpan({
-        text: Platform.isMobile
-          ? this.photos.length ? "Add another photo" : "Choose photos of the recipe"
-          : this.photos.length ? "Add another photo: click, drop or paste" : "Drop photos of the recipe here, paste one, or click to choose",
-      });
+      if (Platform.isMobile) {
+        const pick = (icon: string, label: string, input: HTMLInputElement) => {
+          const b = drop.createEl("button", { cls: "recipe-importer-photo-pick", attr: { type: "button" } });
+          setIcon(b.createSpan({ cls: "recipe-importer-photo-drop-icon" }), icon);
+          b.createSpan({ text: label });
+          b.addEventListener("click", () => input.click());
+        };
+        pick("camera", this.photos.length ? "Take another" : "Take photo", camera);
+        pick("image-plus", this.photos.length ? "Add photos" : "Choose photos", chooser);
+      } else {
+        setIcon(drop.createSpan({ cls: "recipe-importer-photo-drop-icon" }), "image-plus");
+        drop.createSpan({
+          text: this.photos.length ? "Add another photo: click, drop or paste" : "Drop photos of the recipe here, paste one, or click to choose",
+        });
+      }
       thumbs.empty();
       this.photos.forEach((p, i) => {
         const t = thumbs.createDiv({ cls: "recipe-importer-photo-thumb" });
@@ -2097,8 +2105,11 @@ class ImportModal extends Modal {
       this.showProgressStep(this.plugin.photoPage(this.photos.map((p) => p.image)));
     };
 
-    drop.addEventListener("click", () => chooser.click());
+    drop.addEventListener("click", () => {
+      if (!Platform.isMobile) chooser.click();
+    });
     drop.addEventListener("keydown", (e) => {
+      if (Platform.isMobile) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         e.stopPropagation();
@@ -2147,20 +2158,22 @@ class ImportModal extends Modal {
       attr: { placeholder: "Paste a recipe: its name, ingredients and steps, in any layout.", spellcheck: "false" },
     });
     area.value = this.pastedText;
+    const syncField = pasteOrClear(area, "Paste recipe", async () => {
+      const text = await readClipboard();
+      if (!text.trim()) {
+        new Notice("The clipboard is empty.");
+        return;
+      }
+      area.value = text;
+      update();
+    }, () => {
+      area.value = "";
+      update();
+      if (!Platform.isMobile) area.focus();
+    });
     const check = contentEl.createDiv({ cls: "recipe-importer-check" });
     let button!: import("obsidian").ButtonComponent;
     const actions = new Setting(contentEl)
-      .addExtraButton((b) =>
-        b.setIcon("clipboard-paste").setTooltip("Paste recipe").onClick(async () => {
-          const text = await readClipboard();
-          if (!text.trim()) {
-            new Notice("The clipboard is empty.");
-            return;
-          }
-          area.value = text;
-          update();
-        }),
-      )
       .addButton((b) => {
         button = b;
         b.setButtonText("Import").setCta().onClick(() => go());
@@ -2174,6 +2187,7 @@ class ImportModal extends Modal {
     };
     const update = () => {
       this.pastedText = area.value;
+      syncField();
       const text = area.value.trim();
       const lines = text ? text.split(/\n/).filter((l) => l.trim()).length : 0;
       if (!text) { check.empty(); check.className = "recipe-importer-check"; }
@@ -2223,27 +2237,15 @@ class ImportModal extends Modal {
       syncPaste();
       void runCheck();
     };
-    // Paste while the box is empty; once it has something, the same button clears it.
-    let pasteButton!: import("obsidian").ExtraButtonComponent;
-    const syncPaste = () => {
-      const full = !!input.value;
-      pasteButton.setIcon(full ? "x" : "clipboard-paste").setTooltip(full ? "Clear" : "Paste link");
-    };
-    linkSetting.addExtraButton((b) => {
-      pasteButton = b;
-      b.onClick(async () => {
-        if (input.value) {
-          useLink("");
-          if (!Platform.isMobile) input.focus();
-          return;
-        }
-        const link = await clipboardLink();
-        if (link) useLink(link);
-        else new Notice("There's no link in the clipboard.");
-      });
+    // Paste while the box is empty; once it has something, the same button (inside the box) clears it.
+    const syncPaste = pasteOrClear(input, "Paste link", async () => {
+      const link = await clipboardLink();
+      if (link) useLink(link);
+      else new Notice("There's no link in the clipboard.");
+    }, () => {
+      useLink("");
+      if (!Platform.isMobile) input.focus();
     });
-    input.addEventListener("input", () => syncPaste());
-    syncPaste();
     const check = contentEl.createDiv({ cls: "recipe-importer-check" });
     let button!: import("obsidian").ButtonComponent;
     const actions = new Setting(contentEl).addButton((b) => {
@@ -2562,6 +2564,34 @@ function noteAsRecipe(markdown: string, title: string): RecipeData {
 }
 
 /** The clipboard's text, or "" when it can't be read (no permission, or not text). */
+/**
+ * A paste button inside a text box, at its top right, that turns into an x to clear the box once it has
+ * something in it. Returns a function that updates the icon (it also follows typing on its own).
+ */
+function pasteOrClear(field: HTMLInputElement | HTMLTextAreaElement, pasteLabel: string, paste: () => void | Promise<void>, clear: () => void): () => void {
+  const wrap = createDiv({ cls: "recipe-importer-field" });
+  field.parentElement?.insertBefore(wrap, field);
+  wrap.appendChild(field);
+  const button = wrap.createEl("button", { cls: "clickable-icon recipe-importer-field-button", attr: { type: "button" } });
+  let full = false;
+  const sync = () => {
+    const now = !!field.value;
+    if (now === full && button.hasChildNodes()) return;
+    full = now;
+    button.empty();
+    setIcon(button, full ? "x" : "clipboard-paste");
+    button.setAttr("aria-label", full ? "Clear" : pasteLabel);
+  };
+  button.addEventListener("click", () => {
+    if (field.value) clear();
+    else void paste();
+    sync();
+  });
+  field.addEventListener("input", sync);
+  sync();
+  return sync;
+}
+
 async function readClipboard(): Promise<string> {
   try {
     return (await navigator.clipboard.readText()) ?? "";

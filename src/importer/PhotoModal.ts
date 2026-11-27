@@ -50,7 +50,7 @@ export class PhotoModal extends Modal {
   onOpen() {
     const { contentEl, modalEl } = this;
     this.setTitle("Set recipe photo");
-    modalEl.addClass("cooklang-photo-modal");
+    modalEl.addClass("cooklang-photo-modal", "cooklang-modal");
     contentEl.createDiv({ cls: "cooklang-photo-recipe", text: this.recipeName });
 
     // Drop area: shows the current or chosen photo; click, Enter or Space chooses a file.

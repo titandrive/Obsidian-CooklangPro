@@ -82,7 +82,7 @@ export class TagEditorModal extends Modal {
 
   onOpen() {
     const { contentEl, modalEl, files } = this;
-    modalEl.addClass("cooklang-tag-editor");
+    modalEl.addClass("cooklang-tag-editor", "cooklang-modal");
     this.setTitle("Edit tags");
     const many = files.length > 1;
     const sub = contentEl.createDiv({ cls: "cooklang-tag-editor-target" });

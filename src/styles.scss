@@ -701,6 +701,12 @@ button.cook-pill.cook-pill-edit-tags {
   &.is-active { color: var(--text-normal); border-bottom-color: var(--interactive-accent); }
 }
 
+/* On a phone the three tabs share the width evenly. */
+.is-mobile .recipe-importer-tabs button.recipe-importer-tab {
+  flex: 1;
+  justify-content: center;
+}
+
 .recipe-importer-tabs + .setting-item {
   border-top: none;
 }
@@ -728,6 +734,33 @@ button.cook-pill.cook-pill-edit-tags {
     width: 28px;
     height: 28px;
   }
+}
+
+/* On a phone: two big buttons, the camera and the photo picker, instead of a drop box. */
+.recipe-importer-photo-drop.is-mobile-picker {
+  flex-direction: row;
+  align-items: stretch;
+  gap: var(--size-4-3);
+  min-height: 0;
+  padding: 0;
+  border: none;
+  cursor: default;
+}
+button.recipe-importer-photo-pick {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  height: auto;
+  min-height: 7em;
+  border: 2px dashed var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-normal);
+  --button-radius: var(--radius-m);
 }
 
 .recipe-importer-photo-thumbs {
@@ -768,6 +801,31 @@ button.cook-pill.cook-pill-edit-tags {
     svg { width: 14px; height: 14px; }
   }
 }
+
+/* A text box with its paste / clear button inside, at the top right. */
+.recipe-importer-field {
+  position: relative;
+  width: 100%;
+  input, textarea { width: 100%; padding-right: 48px; }
+}
+.recipe-importer-field-button.clickable-icon {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  svg { width: 20px; height: 20px; }
+}
+.is-mobile .recipe-importer-field {
+  input, textarea { padding-right: 56px; }
+  .recipe-importer-field-button.clickable-icon { width: 44px; height: 44px; svg { width: 24px; height: 24px; } }
+}
+.is-mobile .recipe-importer-field:has(input) input { min-height: 48px; }
+.recipe-importer-field:has(input) .recipe-importer-field-button { top: 50%; transform: translateY(-50%); }
 
 .recipe-importer-text {
   width: 100%;
@@ -2358,3 +2416,26 @@ button.cook-start-btn {
 /* Servings where the scaler would be, when there's no scaler. */
 .cook-servings-static { color: var(--text-muted); font-size: var(--font-ui-small); white-space: nowrap; }
 .cook-servings-static.is-missing { color: var(--text-faint); font-style: italic; }
+
+/* CooklangPro's windows use desktop-style controls on every device: Obsidian's phone theme reads these
+   variables to make buttons, fields and dropdowns pill-shaped. */
+.cooklang-modal {
+  --button-radius: 5px;
+  --input-radius: 5px;
+
+  button:not(.clickable-icon):not(.recipe-importer-tab):not(.recipe-importer-photo-pick),
+  select.dropdown {
+    border-radius: 5px;
+  }
+  button:not(.clickable-icon):not(.recipe-importer-tab):not(.recipe-importer-photo-pick):not(:disabled) {
+    box-shadow:
+      rgba(255, 255, 255, 0.09) 0 0.5px 0.5px 0.5px inset,
+      rgba(0, 0, 0, 0.15) 0 2px 4px 0,
+      rgba(0, 0, 0, 0.1) 0 1px 1.5px 0,
+      rgba(0, 0, 0, 0.2) 0 1px 2px 0;
+  }
+}
+.theme-light .cooklang-modal
+  button:not(.clickable-icon):not(.recipe-importer-tab):not(.recipe-importer-photo-pick):not(:disabled) {
+  box-shadow: rgba(0, 0, 0, 0.08) 0 0 0 1px inset, rgba(0, 0, 0, 0.12) 0 1px 2px 0;
+}
